@@ -1,0 +1,7 @@
+use bevy::prelude::*;
+
+pub(super) fn plugin(app: &mut App) {
+    app.add_systems(OnEnter(Screen::Game), spawn_game_screen);
+}
+
+fn spawn_game_screen(mut commands: Commands) {}

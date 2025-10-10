@@ -1,0 +1,26 @@
+[package]
+name = "ldg-jam-3"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.17.2", features = ["bevy_remote"] }
+log = { version = "*", features = [
+    "max_level_debug",
+    "release_max_level_warn",
+] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"
