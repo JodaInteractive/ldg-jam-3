@@ -5,7 +5,12 @@ use crate::{input::Action, screens::Screen};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Game), spawn_game_screen);
-    app.add_systems(Update, game_loop.run_if(in_state(Screen::Game)));
+    app.configure_sets(Startup, GameSet::Player);
+
+    app.add_systems(
+        Update,
+        (player_input, update_projectiles).in_set(GameSet::Player),
+    );
 }
 
 fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -17,6 +22,7 @@ fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
             image: asset_server.load("sprites/ships/ship1.png"),
             ..default()
         },
+        PlayerShotTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
         children![(
             Name::new("Player Hitbox"),
             Sprite {
@@ -27,33 +33,66 @@ fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
+#[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
+enum GameSet {
+    Player,
+}
+
 #[derive(Component)]
 struct Player;
 
-fn game_loop(
+#[derive(Component)]
+struct Projectile;
+
+#[derive(Component)]
+struct PlayerShotTimer(Timer);
+
+fn player_input(
+    mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
-    mut player: Query<&mut Transform, With<Player>>,
+    mut player: Query<(&mut Transform, &mut PlayerShotTimer), With<Player>>,
+    time: Res<Time>,
 ) {
     let action_state = input_query.single().unwrap();
-    let mut player_transform = player.single_mut().unwrap();
+    let (mut player_transform, mut shot_timer) = player.single_mut().unwrap();
+
+    shot_timer.0.tick(time.delta());
 
     if action_state.pressed(&Action::Up) {
-        println!("Up pressed");
         player_transform.translation += Vec3::Y * 5.0;
     }
 
     if action_state.pressed(&Action::Down) {
-        println!("Down pressed");
         player_transform.translation -= Vec3::Y * 5.0;
     }
 
     if action_state.pressed(&Action::Left) {
-        println!("Left pressed");
         player_transform.translation -= Vec3::X * 5.0;
     }
 
     if action_state.pressed(&Action::Right) {
-        println!("Right pressed");
         player_transform.translation += Vec3::X * 5.0;
+    }
+
+    if action_state.pressed(&Action::Shoot) && shot_timer.0.is_finished() {
+        commands.spawn((
+            Name::new("Player Projectile"),
+            Sprite {
+                custom_size: Some(Vec2::splat(16.0)),
+                ..default()
+            },
+            Transform {
+                translation: player_transform.translation + Vec3::Y * 20.0,
+                ..default()
+            },
+            Projectile,
+            DespawnOnExit(Screen::Game),
+        ));
+    }
+}
+
+fn update_projectiles(mut projectiles: Query<&mut Transform, With<Projectile>>) {
+    for mut projectile in projectiles.iter_mut() {
+        projectile.translation += Vec3::Y * 10.0;
     }
 }
