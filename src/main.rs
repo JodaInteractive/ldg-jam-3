@@ -1,10 +1,14 @@
 use bevy::{
-    asset::{AssetMetaCheck, embedded_asset},
+    asset::AssetMetaCheck,
     prelude::*,
     remote::{RemotePlugin, http::RemoteHttpPlugin},
     window::{WindowMode, WindowResolution},
 };
+use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 
+use crate::input::InputPlugin;
+
+mod input;
 mod screens;
 
 fn main() -> AppExit {
@@ -15,6 +19,10 @@ pub struct AppPlugin;
 
 impl Plugin for AppPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(EmbeddedAssetPlugin {
+            mode: PluginMode::ReplaceDefault,
+        });
+
         app.add_plugins(
             DefaultPlugins
                 .set(AssetPlugin {
@@ -35,10 +43,10 @@ impl Plugin for AppPlugin {
                 }),
         );
 
+        app.add_plugins(InputPlugin);
+
         app.add_plugins(RemotePlugin::default());
         app.add_plugins(RemoteHttpPlugin::default());
-
-        app.add_plugins(EmbeddedAssetPlugin);
 
         app.add_plugins(screens::plugin);
 
@@ -47,14 +55,6 @@ impl Plugin for AppPlugin {
 
         app.insert_resource(ClearColor(Color::srgb_u8(49, 54, 56)));
         app.add_systems(Startup, spawn_camera);
-    }
-}
-
-struct EmbeddedAssetPlugin;
-
-impl Plugin for EmbeddedAssetPlugin {
-    fn build(&self, app: &mut App) {
-        embedded_asset!(app, "", "../assets/sprites/ships/ship1.png");
     }
 }
 
