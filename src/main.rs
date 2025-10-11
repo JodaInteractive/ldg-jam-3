@@ -40,7 +40,8 @@ impl Plugin for AppPlugin {
                         ..default()
                     }),
                     ..default()
-                }),
+                })
+                .set(ImagePlugin::default_nearest()),
         );
 
         app.add_plugins(InputPlugin);
