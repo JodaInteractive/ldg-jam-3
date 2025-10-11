@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.17.2", features = ["bevy_remote"] }
+bevy_embedded_assets = "0.14.0"
+leafwing-input-manager = "0.18.0"
 log = { version = "*", features = [
     "max_level_debug",
     "release_max_level_warn",
