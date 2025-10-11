@@ -18,6 +18,7 @@ pub enum Action {
     Right,
     Select,
     Shoot,
+    Pause,
 }
 
 fn setup_input(mut commands: Commands) {
@@ -35,6 +36,7 @@ fn setup_input(mut commands: Commands) {
     player_input_map.insert(Action::Select, KeyCode::Space);
     player_input_map.insert(Action::Shoot, KeyCode::Space);
     player_input_map.insert(Action::Select, KeyCode::Enter);
+    player_input_map.insert(Action::Pause, KeyCode::Escape);
 
     commands.spawn(player_input_map);
 }
