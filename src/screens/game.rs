@@ -4,19 +4,39 @@ use rand::random_range;
 
 use crate::{input::Action, screens::Screen};
 
+#[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub enum GameState {
+    #[default]
+    Play,
+    GameOver,
+}
+
 pub(super) fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Game), spawn_game_screen);
-    app.configure_sets(Startup, GameSet::Player);
+    app.init_state::<GameState>();
+    app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
+    app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
+    app.add_systems(OnExit(GameState::GameOver), despawn_game_screen);
+    app.configure_sets(Startup, GameSet::Play);
     app.configure_sets(Startup, GameSet::Environment);
+    app.configure_sets(Startup, GameSet::GameOver);
 
     app.add_systems(
         FixedUpdate,
-        (player_input, update_projectiles).in_set(GameSet::Player),
+        (player_input, update_projectiles).in_set(GameSet::Play),
     );
 
+    app.add_systems(Update, (pause).in_set(GameSet::Play));
+
+    app.add_systems(Update, (game_over_input).in_set(GameSet::GameOver));
+
     app.add_systems(
         FixedUpdate,
-        (spawn_asteroids, update_asteroids).in_set(GameSet::Environment),
+        (
+            spawn_asteroids,
+            update_asteroids,
+            collide_with_asteroid_check,
+        )
+            .in_set(GameSet::Environment),
     );
 
     app.insert_resource(AsteroidSpawnTimer(Timer::from_seconds(
@@ -25,7 +45,11 @@ pub(super) fn plugin(app: &mut App) {
     )));
 }
 
-fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_game_screen(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut time: ResMut<Time<Virtual>>,
+) {
     commands.spawn((
         Name::new("Player Ship"),
         Player,
@@ -35,7 +59,7 @@ fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
             custom_size: Some(Vec2::splat(64.0)),
             ..default()
         },
-        PlayerShotTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+        PlayerShotTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
         children![(
             Name::new("Player Hitbox"),
             Sprite {
@@ -45,12 +69,33 @@ fn spawn_game_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
             }
         )],
     ));
+
+    time.unpause();
+}
+
+fn despawn_game_screen(
+    mut commands: Commands,
+    player: Query<Entity, With<Player>>,
+    asteraids: Query<Entity, With<Asteroid>>,
+    projectiles: Query<Entity, With<Projectile>>,
+) {
+    let player = player.single().unwrap();
+    commands.entity(player).despawn();
+
+    for asteroid in asteraids.iter() {
+        commands.entity(asteroid).despawn();
+    }
+
+    for projectile in projectiles.iter() {
+        commands.entity(projectile).despawn();
+    }
 }
 
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
 enum GameSet {
-    Player,
+    Play,
     Environment,
+    GameOver,
 }
 
 #[derive(Component)]
@@ -75,27 +120,29 @@ fn player_input(
     mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
     mut player: Query<(&mut Transform, &mut PlayerShotTimer), With<Player>>,
-    time: Res<Time>,
+    time: Res<Time<Virtual>>,
 ) {
     let action_state = input_query.single().unwrap();
     let (mut player_transform, mut shot_timer) = player.single_mut().unwrap();
 
     shot_timer.0.tick(time.delta());
 
+    let player_speed = 6.0;
+
     if action_state.pressed(&Action::Up) {
-        player_transform.translation += Vec3::Y * 5.0;
+        player_transform.translation += Vec3::Y * player_speed;
     }
 
     if action_state.pressed(&Action::Down) {
-        player_transform.translation -= Vec3::Y * 5.0;
+        player_transform.translation -= Vec3::Y * player_speed;
     }
 
     if action_state.pressed(&Action::Left) {
-        player_transform.translation -= Vec3::X * 5.0;
+        player_transform.translation -= Vec3::X * player_speed;
     }
 
     if action_state.pressed(&Action::Right) {
-        player_transform.translation += Vec3::X * 5.0;
+        player_transform.translation += Vec3::X * player_speed;
     }
 
     if action_state.pressed(&Action::Shoot) && shot_timer.0.is_finished() {
@@ -115,9 +162,20 @@ fn player_input(
     }
 }
 
+fn pause(mut time: ResMut<Time<Virtual>>, input_query: Query<&ActionState<Action>>) {
+    let action_state = input_query.single().unwrap();
+    if action_state.just_pressed(&Action::Pause) {
+        if time.is_paused() {
+            time.unpause();
+        } else {
+            time.pause();
+        }
+    }
+}
+
 fn update_projectiles(mut projectiles: Query<&mut Transform, With<Projectile>>) {
     for mut projectile in projectiles.iter_mut() {
-        projectile.translation += Vec3::Y * 10.0;
+        projectile.translation += Vec3::Y * 20.0;
     }
 }
 
@@ -125,7 +183,7 @@ fn spawn_asteroids(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut timer: ResMut<AsteroidSpawnTimer>,
-    time: Res<Time>,
+    time: Res<Time<Virtual>>,
 ) {
     timer.0.tick(time.delta());
     if !timer.0.is_finished() {
@@ -183,6 +241,7 @@ fn update_asteroids(
     for (entity, mut transform, asteroid) in asteroids.iter_mut() {
         if transform.translation.y < -800.0 {
             commands.entity(entity).despawn();
+            continue;
         }
         transform.translation -= Vec3::Y * asteroid.speed;
         transform.rotation *= Quat::from_rotation_z(asteroid.rotation_speed);
@@ -217,4 +276,77 @@ fn spawn_asteroid(
         },
         DespawnOnExit(Screen::Game),
     ));
+}
+
+fn collide_with_asteroid_check(
+    player: Query<&Transform, With<Player>>,
+    asteroids: Query<&Transform, With<Asteroid>>,
+    mut time: ResMut<Time<Virtual>>,
+    mut state: ResMut<NextState<GameState>>,
+) {
+    let player_transform = player.single().unwrap();
+    let hitbox_size = 23.0;
+
+    for asteroid_transform in asteroids.iter() {
+        let distance = player_transform
+            .translation
+            .distance(asteroid_transform.translation);
+        if distance < (hitbox_size / 2.0) + (110.0 / 2.0) {
+            println!("Player hit by an asteroid!");
+            time.pause();
+            state.set(GameState::GameOver);
+        }
+    }
+}
+
+fn spawn_game_over(mut commands: Commands) {
+    commands.spawn((
+        Name::new("Game Over Screen"),
+        Transform {
+            translation: Vec3::new(0.0, 0.0, 100.0),
+            ..default()
+        },
+        Node::default(),
+        DespawnOnExit(Screen::Game),
+        DespawnOnExit(GameState::GameOver),
+        children![
+            (
+                Name::new("Game Over Text"),
+                Text::new("Game Over"),
+                Node::default()
+            ),
+            (
+                Name::new("Replay Button"),
+                Button,
+                Node {
+                    margin: UiRect::all(Val::Px(10.0)),
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::BLACK),
+                children![(Name::new("Replay Button Text"), Text::new("Replay"))],
+            )
+        ],
+    ));
+}
+
+fn game_over_input(
+    input_query: Query<&ActionState<Action>>,
+    mut state: ResMut<NextState<GameState>>,
+    interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
+) {
+    let action_state = input_query.single().unwrap();
+    if action_state.just_pressed(&Action::Select) {
+        state.set(GameState::Play);
+    }
+
+    for interaction in interaction_query.iter() {
+        match *interaction {
+            Interaction::Pressed => {
+                state.set(GameState::Play);
+            }
+            Interaction::Hovered => {}
+            Interaction::None => {}
+        }
+    }
 }
