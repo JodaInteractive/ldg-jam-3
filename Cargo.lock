@@ -2988,6 +2988,7 @@ dependencies = [
  "bevy_embedded_assets",
  "leafwing-input-manager",
  "log",
+ "rand",
 ]
 
 [[package]]
