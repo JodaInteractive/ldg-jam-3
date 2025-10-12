@@ -1,33 +1,43 @@
-What is the game? 
-shmup roguelike with different game modes along the path to the big boss 
+## What is the game? 
+A shmup roguelike with different level types and a boss fight at the end of each run
 
-plot
+## Why did I make this game?
+
+![LDG Game Jam 3 - 2025](https://img.itch.zone/aW1nLzIzNDI4OTE5LnBuZw==/original/EXyxW%2F.png)
+
+## Design Notes
+
+### Plot 
 you are a trainee pilot thrust into the action when you stumble across the roguelike boss during a routine (tutorial) patrol
 
-areas
+### Areas
 classic shmup level 
 asteroid fields for generating resources
 cities for shopping and upgrading
 
-ship stats
-health
-shield
-attack rate
-damage per projectile
-attack shape
+### Ship Stats
 
-resources
-asteroid resources
-money?
-fuel?
-ship capacity?
+- health
+- shield
+- attack rate
+- damage per projectile
+- attack shape
 
-art requirements
-ship sprite
-asteroid sprite
-enemy ship sprite 
-enemy boss ship sprite
-map asteroid field
-map city
-map boss fight
-map pirate areia
+### Resources
+
+- asteroid resource - ore?
+- money?
+- fuel?
+- ship cargo capacity?
+
+### Required Art Assets
+
+- [ ] Title
+- [ ] Splash
+- [x] Player Ship Sprite
+- [ ] Player Projectile Sprite
+- [x] Asteroid Sprite
+- [ ] Enemy Ship Sprite
+- [ ] Enemy Boss Ship Sprite
+- [ ] Backgrounds
+- [ ] Explosion Sprite/Animation
