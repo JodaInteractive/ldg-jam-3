@@ -255,7 +255,7 @@ fn spawn_asteroid(
     size: Vec2,
 ) {
     let image_index = random_range(1..=2);
-    let image = format!("sprites/asteroids/asteroid{}.png", image_index);
+    let image = format!("sprites/asteroids/asteroid{image_index}.png");
     commands.spawn((
         Name::new("Asteroid"),
         Sprite {
