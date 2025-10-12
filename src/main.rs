@@ -1,7 +1,6 @@
 use bevy::{
     asset::AssetMetaCheck,
     prelude::*,
-    remote::{RemotePlugin, http::RemoteHttpPlugin},
     window::{WindowMode, WindowResolution},
 };
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
@@ -45,9 +44,6 @@ impl Plugin for AppPlugin {
         );
 
         app.add_plugins(InputPlugin);
-
-        app.add_plugins(RemotePlugin::default());
-        app.add_plugins(RemoteHttpPlugin::default());
 
         app.add_plugins(screens::plugin);
 

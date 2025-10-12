@@ -16,18 +16,18 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
     app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
     app.add_systems(OnExit(GameState::GameOver), despawn_game_screen);
-    app.configure_sets(Startup, GameSet::Play);
-    app.configure_sets(Startup, GameSet::Environment);
-    app.configure_sets(Startup, GameSet::GameOver);
+    app.configure_sets(Startup, GameSystems::Play);
+    app.configure_sets(Startup, GameSystems::Environment);
+    app.configure_sets(Startup, GameSystems::GameOver);
 
     app.add_systems(
         FixedUpdate,
-        (player_input, update_projectiles).in_set(GameSet::Play),
+        (player_input, update_projectiles).in_set(GameSystems::Play),
     );
 
-    app.add_systems(Update, (pause).in_set(GameSet::Play));
+    app.add_systems(Update, (pause).in_set(GameSystems::Play));
 
-    app.add_systems(Update, (game_over_input).in_set(GameSet::GameOver));
+    app.add_systems(Update, (game_over_input).in_set(GameSystems::GameOver));
 
     app.add_systems(
         FixedUpdate,
@@ -36,7 +36,7 @@ pub(super) fn plugin(app: &mut App) {
             update_asteroids,
             collide_with_asteroid_check,
         )
-            .in_set(GameSet::Environment),
+            .in_set(GameSystems::Environment),
     );
 
     app.insert_resource(AsteroidSpawnTimer(Timer::from_seconds(
@@ -92,7 +92,7 @@ fn despawn_game_screen(
 }
 
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
-enum GameSet {
+enum GameSystems {
     Play,
     Environment,
     GameOver,
