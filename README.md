@@ -1,5 +1,8 @@
 ## What is the game? 
+
 A shmup roguelike with different level types and a boss fight at the end of each run
+You can play it on [itch.io](https://joda-interactive.itch.io/space-journey) now!
+If you are playing it before the jam entry is submitted, the password is `ldgjam3`
 
 ## Why did I make this game?
 
