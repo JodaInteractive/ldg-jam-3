@@ -56,7 +56,7 @@ env:
 
   # The itch.io project to deploy to in the format `user-name/project-name`.
   # There will be no deployment to itch.io if this is commented out.
-  itch_page: JodaInteractive/space-journey
+  itch_page: joda-interactive/space-journey
 
   # The ID of the app produced by this workflow.
   # Applies to macOS releases.
@@ -338,9 +338,8 @@ jobs:
 
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
-          pattern: package-(windows|macos|linux|web)
           path: tmp
 
       - name: Install butler
