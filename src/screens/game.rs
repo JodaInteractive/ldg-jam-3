@@ -22,7 +22,12 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(
         FixedUpdate,
-        (player_input, update_projectiles).in_set(GameSystems::Play),
+        (
+            player_input,
+            update_projectiles,
+            projectile_asteroid_collision,
+        )
+            .in_set(GameSystems::Play),
     );
 
     app.add_systems(Update, (pause).in_set(GameSystems::Play));
@@ -295,6 +300,24 @@ fn collide_with_asteroid_check(
             println!("Player hit by an asteroid!");
             time.pause();
             state.set(GameState::GameOver);
+        }
+    }
+}
+
+fn projectile_asteroid_collision(
+    mut commands: Commands,
+    projectiles: Query<(Entity, &Transform), With<Projectile>>,
+    asteroids: Query<(Entity, &Transform), With<Asteroid>>,
+) {
+    for (projectile_entity, projectile_transform) in projectiles.iter() {
+        for (asteroid_entity, asteroid_transform) in asteroids.iter() {
+            let distance = projectile_transform
+                .translation
+                .distance(asteroid_transform.translation);
+            if distance < (16.0 / 2.0) + (110.0 / 2.0) {
+                commands.entity(projectile_entity).despawn();
+                commands.entity(asteroid_entity).despawn();
+            }
         }
     }
 }
