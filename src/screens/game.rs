@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use rand::random_range;
 
-use crate::{input::Action, screens::Screen};
+use crate::{PIXEL_PERFECT_LAYERS, input::Action, screens::Screen};
 
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum GameState {
@@ -57,22 +57,21 @@ fn spawn_game_screen(
 ) {
     commands.spawn((
         Name::new("Player Ship"),
-        Player,
+        Player {
+            can_shoot: true,
+            timer: Timer::from_seconds(0.15, TimerMode::Once),
+        },
         DespawnOnExit(Screen::Game),
         Sprite {
-            image: asset_server.load("sprites/ships/ship1.png"),
-            custom_size: Some(Vec2::splat(64.0)),
+            image: asset_server.load("sprites/ships/ship3.png"),
+            custom_size: Some(Vec2::splat(32.0)),
             ..default()
         },
-        PlayerShotTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
-        children![(
-            Name::new("Player Hitbox"),
-            Sprite {
-                image: asset_server.load("sprites/ships/ship1-hitbox.png"),
-                custom_size: Some(Vec2::splat(64.0)),
-                ..default()
-            }
-        )],
+        Transform {
+            translation: Vec3::new(0.0, -200.0, 0.0),
+            ..default()
+        },
+        PIXEL_PERFECT_LAYERS,
     ));
 
     time.unpause();
@@ -104,13 +103,13 @@ enum GameSystems {
 }
 
 #[derive(Component)]
-struct Player;
+struct Player {
+    pub can_shoot: bool,
+    pub timer: Timer,
+}
 
 #[derive(Component)]
 struct Projectile;
-
-#[derive(Component)]
-struct PlayerShotTimer(Timer);
 
 #[derive(Component)]
 struct Asteroid {
@@ -124,13 +123,17 @@ struct AsteroidSpawnTimer(Timer);
 fn player_input(
     mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
-    mut player: Query<(&mut Transform, &mut PlayerShotTimer), With<Player>>,
+    mut player_query: Query<(&mut Transform, &mut Player)>,
     time: Res<Time<Virtual>>,
+    asset_server: Res<AssetServer>,
 ) {
     let action_state = input_query.single().unwrap();
-    let (mut player_transform, mut shot_timer) = player.single_mut().unwrap();
+    let (mut player_transform, mut player) = player_query.single_mut().unwrap();
 
-    shot_timer.0.tick(time.delta());
+    player.timer.tick(time.delta());
+    if player.timer.is_finished() {
+        player.can_shoot = true;
+    }
 
     let player_speed = 6.0;
 
@@ -150,11 +153,15 @@ fn player_input(
         player_transform.translation += Vec3::X * player_speed;
     }
 
-    if action_state.pressed(&Action::Shoot) && shot_timer.0.is_finished() {
+    player_transform.translation.x = player_transform.translation.x.clamp(-400.0, 400.0);
+    player_transform.translation.y = player_transform.translation.y.clamp(-220.0, 220.0);
+
+    if action_state.pressed(&Action::Shoot) && player.can_shoot {
         commands.spawn((
             Name::new("Player Projectile"),
+            PIXEL_PERFECT_LAYERS,
             Sprite {
-                custom_size: Some(Vec2::splat(16.0)),
+                image: asset_server.load("sprites/projectiles/projectile1.png"),
                 ..default()
             },
             Transform {
@@ -164,6 +171,8 @@ fn player_input(
             Projectile,
             DespawnOnExit(Screen::Game),
         ));
+        player.can_shoot = false;
+        player.timer.reset();
     }
 }
 
@@ -180,7 +189,7 @@ fn pause(mut time: ResMut<Time<Virtual>>, input_query: Query<&ActionState<Action
 
 fn update_projectiles(mut projectiles: Query<&mut Transform, With<Projectile>>) {
     for mut projectile in projectiles.iter_mut() {
-        projectile.translation += Vec3::Y * 20.0;
+        projectile.translation += Vec3::Y * 15.0;
     }
 }
 
@@ -195,32 +204,30 @@ fn spawn_asteroids(
         return;
     }
 
-    let count = random_range(1..=5);
+    let count = random_range(3..=9);
 
-    let lanes = 7;
-    let lane_width = 1400.0 / lanes as f32;
+    let lanes = 10;
+    let lane_width = 750.0 / lanes as f32;
     let mut used_lanes = Vec::new();
 
-    if count == 5 {
+    let mut spawned_count = 0;
+    if count > 6 {
         let big_spawn = random_range(0..4) == 0;
         if big_spawn {
             let lane = random_range(1..(lanes - 1));
             used_lanes.push(lane);
-            used_lanes.push(lane - 1);
-            used_lanes.push(lane + 1);
             let lane_variance = random_range(-lane_width / 4.0..lane_width / 4.0);
             let x = lane_width * lane as f32 + lane_width / 2.0 + lane_variance;
             spawn_asteroid(
                 &mut commands,
                 &asset_server,
-                Vec3::new(x - 700.0, 720.0, -10.0),
-                Vec2::splat(256.0),
+                Vec3::new(x - 350.0, 360.0, -10.0),
+                Vec2::splat(64.0),
             );
-            return;
         }
+        spawned_count += 2;
     }
 
-    let mut spawned_count = 0;
     while spawned_count < count {
         let lane = random_range(0..lanes);
         if used_lanes.contains(&lane) {
@@ -231,8 +238,8 @@ fn spawn_asteroids(
         spawn_asteroid(
             &mut commands,
             &asset_server,
-            Vec3::new(x - 700.0, 720.0, -10.0),
-            Vec2::splat(128.0),
+            Vec3::new(x - 350.0, 360.0, -10.0),
+            Vec2::splat(32.0),
         );
         spawned_count += 1;
         used_lanes.push(lane);
@@ -259,7 +266,7 @@ fn spawn_asteroid(
     position: Vec3,
     size: Vec2,
 ) {
-    let image_index = random_range(1..=2);
+    let image_index = random_range(3..=4);
     let image = format!("sprites/asteroids/asteroid{image_index}.png");
     commands.spawn((
         Name::new("Asteroid"),
@@ -276,7 +283,7 @@ fn spawn_asteroid(
             ..default()
         },
         Asteroid {
-            speed: random_range(1.0..4.0),
+            speed: random_range(1.0..2.0),
             rotation_speed: random_range(-0.02..0.02),
         },
         DespawnOnExit(Screen::Game),
@@ -290,13 +297,13 @@ fn collide_with_asteroid_check(
     mut state: ResMut<NextState<GameState>>,
 ) {
     let player_transform = player.single().unwrap();
-    let hitbox_size = 23.0;
+    let hitbox_size = 8.0;
 
     for asteroid_transform in asteroids.iter() {
         let distance = player_transform
             .translation
             .distance(asteroid_transform.translation);
-        if distance < (hitbox_size / 2.0) + (110.0 / 2.0) {
+        if distance < (hitbox_size / 2.0) + (30.0 / 2.0) {
             println!("Player hit by an asteroid!");
             time.pause();
             state.set(GameState::GameOver);
@@ -314,7 +321,7 @@ fn projectile_asteroid_collision(
             let distance = projectile_transform
                 .translation
                 .distance(asteroid_transform.translation);
-            if distance < (16.0 / 2.0) + (110.0 / 2.0) {
+            if distance < (16.0 / 2.0) + (30.0 / 2.0) {
                 commands.entity(projectile_entity).despawn();
                 commands.entity(asteroid_entity).despawn();
             }
@@ -332,6 +339,7 @@ fn spawn_game_over(mut commands: Commands) {
         Node::default(),
         DespawnOnExit(Screen::Game),
         DespawnOnExit(GameState::GameOver),
+        PIXEL_PERFECT_LAYERS,
         children![
             (
                 Name::new("Game Over Text"),

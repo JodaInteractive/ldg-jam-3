@@ -1,7 +1,11 @@
 use bevy::{
     asset::AssetMetaCheck,
+    camera::{RenderTarget, visibility::RenderLayers},
     prelude::*,
-    window::{WindowMode, WindowResolution},
+    render::render_resource::{
+        Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    },
+    window::{WindowMode, WindowResized, WindowResolution},
 };
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 
@@ -9,6 +13,21 @@ use crate::input::InputPlugin;
 
 mod input;
 mod screens;
+
+const RES_WIDTH: u32 = 853;
+const RES_HEIGHT: u32 = 480;
+
+const PIXEL_PERFECT_LAYERS: RenderLayers = RenderLayers::layer(0);
+const HIGH_RES_LAYERS: RenderLayers = RenderLayers::layer(1);
+
+#[derive(Component)]
+struct Canvas;
+
+#[derive(Component)]
+struct InGameCamera;
+
+#[derive(Component)]
+struct OuterCamera;
 
 fn main() -> AppExit {
     App::new().add_plugins(AppPlugin).run()
@@ -50,8 +69,9 @@ impl Plugin for AppPlugin {
         app.init_state::<Pause>();
         app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false))));
 
-        app.insert_resource(ClearColor(Color::srgb_u8(49, 54, 56)));
+        app.insert_resource(ClearColor(Color::srgb_u8(9, 10, 20)));
         app.add_systems(Startup, spawn_camera);
+        app.add_systems(Update, fit_canvas.run_if(on_message::<WindowResized>));
     }
 }
 
@@ -61,6 +81,58 @@ struct Pause(pub bool);
 #[derive(SystemSet, Copy, Clone, Eq, PartialEq, Hash, Debug)]
 struct PausableSystems;
 
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("Camera"), Camera2d));
+fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    let canvas_size = Extent3d {
+        width: RES_WIDTH,
+        height: RES_HEIGHT,
+        ..default()
+    };
+    let mut canvas = Image {
+        texture_descriptor: TextureDescriptor {
+            label: Some("Canvas Texture"),
+            size: canvas_size,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8UnormSrgb,
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: TextureUsages::COPY_DST
+                | TextureUsages::TEXTURE_BINDING
+                | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        },
+        ..default()
+    };
+    canvas.resize(canvas_size);
+    let image_handle = images.add(canvas);
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: -1,
+            target: RenderTarget::Image(image_handle.clone().into()),
+            clear_color: ClearColorConfig::Custom(Color::srgb_u8(9, 10, 20)),
+            ..default()
+        },
+        Msaa::Off,
+        InGameCamera,
+        PIXEL_PERFECT_LAYERS,
+    ));
+
+    commands.spawn((Sprite::from_image(image_handle), Canvas, HIGH_RES_LAYERS));
+
+    commands.spawn((Camera2d, Msaa::Off, OuterCamera, HIGH_RES_LAYERS));
+}
+
+fn fit_canvas(
+    mut resize_messages: MessageReader<WindowResized>,
+    mut projection: Single<&mut Projection, With<OuterCamera>>,
+) {
+    let Projection::Orthographic(proj) = &mut **projection else {
+        return;
+    };
+
+    for msg in resize_messages.read() {
+        let h_scale = msg.width / RES_WIDTH as f32;
+        let v_scale = msg.height / RES_HEIGHT as f32;
+        proj.scale = 1. / h_scale.min(v_scale);
+    }
 }

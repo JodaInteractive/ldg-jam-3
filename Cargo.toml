@@ -15,6 +15,7 @@ bevy = { version = "0.17.2", default-features = false, features = [
     "bevy_window",
     "bevy_winit",
     "bevy_state",
+    "multi_threaded",
     "png",
     "std",
     "webgl2",
@@ -25,7 +26,6 @@ bevy = { version = "0.17.2", default-features = false, features = [
 bevy_embedded_assets = "0.14.0"
 leafwing-input-manager = "0.18.0"
 log = { version = "*", features = [
-    "max_level_debug",
     "release_max_level_warn",
 ] }
 rand = "0.9.2"
@@ -37,12 +37,11 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 # Default to a native dev build.
 default = ["dev_native"]
 dev = [
-    # Improve compile times for dev builds by linking Bevy as a dynamic library.
     "bevy/dynamic_linking",
     "bevy/bevy_dev_tools",
     "bevy/bevy_ui_debug",
-    # Improve error messages coming from Bevy
     "bevy/track_location",
+    "bevy/trace",
 ]
 dev_native = [
     "dev",
