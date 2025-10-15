@@ -40,6 +40,7 @@ pub(super) fn plugin(app: &mut App) {
             spawn_asteroids,
             update_asteroids,
             collide_with_asteroid_check,
+            update_stars,
         )
             .in_set(GameSystems::Environment),
     );
@@ -74,7 +75,45 @@ fn spawn_game_screen(
         PIXEL_PERFECT_LAYERS,
     ));
 
+    spawn_default_stars(&mut commands, &asset_server);
+
     time.unpause();
+}
+
+fn spawn_default_stars(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+    let star_count = 100;
+    for _ in 0..star_count {
+        let x = random_range(-400.0..400.0);
+        let y = random_range(-220.0..220.0);
+        let variant = random_range(1..=2);
+
+        let brightness: f32 = random_range(0.6..1.0);
+        let brightness = brightness * brightness;
+
+        let color = if random_range(0.0..1.0) < 0.5 {
+            Color::linear_rgb(brightness, brightness * 0.9, brightness * 0.7) // warmer star
+        } else {
+            Color::linear_rgb(brightness * 0.8, brightness * 0.9, brightness) // cooler star
+        };
+
+        commands.spawn((
+            Name::new("Star"),
+            Star {
+                speed: random_range(0.5..=2.0),
+            },
+            Sprite {
+                image: asset_server.load(format!("sprites/stars/star{variant}.png")),
+                color,
+                ..default()
+            },
+            Transform {
+                translation: Vec3::new(x, y, -10.0),
+                ..default()
+            },
+            DespawnOnExit(Screen::Game),
+            PIXEL_PERFECT_LAYERS,
+        ));
+    }
 }
 
 fn despawn_game_screen(
@@ -110,6 +149,11 @@ struct Player {
 
 #[derive(Component)]
 struct Projectile;
+
+#[derive(Component)]
+struct Star {
+    pub speed: f32,
+}
 
 #[derive(Component)]
 struct Asteroid {
@@ -257,6 +301,17 @@ fn update_asteroids(
         }
         transform.translation -= Vec3::Y * asteroid.speed;
         transform.rotation *= Quat::from_rotation_z(asteroid.rotation_speed);
+    }
+}
+
+fn update_stars(mut stars: Query<(&mut Transform, &mut Star)>) {
+    for (mut transform, mut star) in stars.iter_mut() {
+        transform.translation -= Vec3::Y * star.speed;
+        if transform.translation.y < -240.0 {
+            transform.translation.y = 240.0 + random_range(0.0..20.0);
+            transform.translation.x = random_range(-400.0..400.0);
+            star.speed = random_range(0.5..=1.5);
+        }
     }
 }
 
