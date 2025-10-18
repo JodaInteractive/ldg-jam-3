@@ -9,30 +9,30 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(Update, fade_in);
 }
 
-#[derive(Resource)]
-pub struct Soundtracks {
-    pub main_theme: Handle<AudioSource>,
-    pub battle_theme: Handle<AudioSource>,
-}
+// #[derive(Resource)]
+// pub struct Soundtracks {
+// pub main_theme: Handle<AudioSource>,
+// pub battle_theme: Handle<AudioSource>,
+// }
 
-pub enum Soundtrack {
-    MainTheme,
-    BattleTheme,
-}
+// pub enum Soundtrack {
+//     MainTheme,
+//     BattleTheme,
+// }
 
-#[derive(Event)]
-pub struct PlaySoundtrackEvent {
-    soundtrack: Soundtrack,
-}
+// #[derive(Event)]
+// pub struct PlaySoundtrackEvent {
+//     soundtrack: Soundtrack,
+// }
 
 fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let main_handle = asset_server.load("soundtrack/spacetheme.ogg");
-    let soundtracks = Soundtracks {
-        main_theme: main_handle.clone(),
-        battle_theme: asset_server.load("audio/soundtrack/battle_theme.ogg"),
-    };
+    let main_handle: Handle<AudioSource> = asset_server.load("soundtrack/spacetheme.ogg");
+    // let soundtracks = Soundtracks {
+    //     main_theme: main_handle.clone(),
+    //     battle_theme: asset_server.load("audio/soundtrack/battle_theme.ogg"),
+    // };
 
-    commands.insert_resource(soundtracks);
+    // commands.insert_resource(soundtracks);
 
     commands.spawn((
         AudioPlayer(main_handle.clone()),

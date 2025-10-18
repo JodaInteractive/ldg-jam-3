@@ -1,9 +1,9 @@
-use bevy::{ecs::event, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     HIGH_RES_LAYERS, PIXEL_PERFECT_LAYERS,
     screens::Screen,
-    sundry::{LIGHT_GRAY, TRANSPARENT_LIGHT_GRAY, TRANSPARENT_WHITE, WHITE},
+    sundry::{LIGHT_GRAY, TRANSPARENT_LIGHT_GRAY, WHITE},
 };
 
 pub(super) fn plugin(app: &mut App) {
