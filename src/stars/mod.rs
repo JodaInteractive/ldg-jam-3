@@ -8,10 +8,7 @@ pub(super) fn plugin(app: &mut App) {
         active_count: 0,
         inactive_stars: Vec::new(),
     });
-    app.add_systems(
-        FixedUpdate,
-        (spawn_stars, update_stars).run_if(in_state(Screen::Splash).or(in_state(Screen::Title))),
-    );
+    app.add_systems(FixedUpdate, (spawn_stars, update_stars));
 }
 
 #[derive(Resource)]
@@ -94,9 +91,13 @@ fn spawn_new_star(
     ));
 }
 
-fn update_stars(mut stars: Query<(&mut Transform, &mut Star)>) {
+fn update_stars(mut stars: Query<(&mut Transform, &mut Star)>, active_screen: Res<State<Screen>>) {
     for (mut transform, mut star) in stars.iter_mut() {
-        transform.translation -= Vec3::Y * star.speed;
+        let speed = match active_screen.get() {
+            Screen::Game => star.speed * 2.0,
+            _ => star.speed,
+        };
+        transform.translation -= Vec3::Y * speed;
         if transform.translation.y < -240.0 {
             transform.translation.y = 240.0 + random_range(0.0..20.0);
             transform.translation.x = random_range(-400.0..400.0);
