@@ -20,6 +20,7 @@ use crate::input::InputPlugin;
 mod audio;
 mod input;
 mod screens;
+mod stars;
 mod sundry;
 
 const RES_WIDTH: u32 = 853;
@@ -59,7 +60,8 @@ impl Plugin for AppPlugin {
                     primary_window: Some(Window {
                         title: "Star Journey".to_string(),
                         fit_canvas_to_parent: true,
-                        mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        // mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        mode: WindowMode::Windowed,
                         resolution: WindowResolution::new(1920, 1080),
                         resizable: false,
                         position: WindowPosition::Centered(MonitorSelection::Current),
@@ -75,6 +77,8 @@ impl Plugin for AppPlugin {
         app.add_plugins(audio::plugin);
 
         app.add_plugins(screens::plugin);
+
+        app.add_plugins(stars::plugin);
 
         // #[cfg(feature = "dev")]
         // app.add_plugins((RemotePlugin::default(), RemoteHttpPlugin::default()));
