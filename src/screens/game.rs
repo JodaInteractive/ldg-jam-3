@@ -11,11 +11,23 @@ pub enum GameState {
     GameOver,
 }
 
+#[derive(Component)]
+struct Thruster;
+
+#[derive(Resource, PartialEq)]
+struct HasEntered(bool);
+
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
+    app.insert_resource::<HasEntered>(HasEntered(false));
+
+    app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
     app.add_systems(
-        OnEnter(GameState::Play),
-        spawn_game_screen.run_if(in_state(Screen::Game)),
+        FixedUpdate,
+        enter_player.run_if(
+            in_state(Screen::Game)
+                .and(in_state(GameState::Play).and(resource_equals(HasEntered(false)))),
+        ),
     );
     app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
     app.add_systems(OnExit(GameState::GameOver), despawn_game_screen);
@@ -70,6 +82,7 @@ fn spawn_game_screen(
     asset_server: Res<AssetServer>,
     mut time: ResMut<Time<Virtual>>,
 ) {
+    let default_speed = asset_server.load("sprites/ships/ship3-default.png");
     commands.spawn((
         Name::new("Player Ship"),
         Player {
@@ -82,14 +95,51 @@ fn spawn_game_screen(
             custom_size: Some(Vec2::splat(32.0)),
             ..default()
         },
+        ShipSpeedSprites {
+            slow: asset_server.load("sprites/ships/ship3-slow.png"),
+            default: default_speed.clone(),
+            fast: asset_server.load("sprites/ships/ship3-fast.png"),
+        },
         Transform {
-            translation: Vec3::new(0.0, -200.0, 0.0),
+            translation: Vec3::new(0.0, -280.0, 0.0),
             ..default()
         },
         PIXEL_PERFECT_LAYERS,
+        children![(
+            Name::new("Player Ship Thruster"),
+            Thruster,
+            Sprite {
+                image: default_speed.clone(),
+                custom_size: Some(Vec2::splat(32.0)),
+                ..default()
+            }
+        )],
     ));
 
     time.unpause();
+}
+
+fn enter_player(
+    mut player: Query<(&mut Transform, &ShipSpeedSprites), With<Player>>,
+    mut thruster: Query<&mut Sprite, With<Thruster>>,
+    mut has_entered: ResMut<HasEntered>,
+) {
+    let player = player.single_mut();
+    if player.is_err() {
+        return;
+    }
+    let (mut player_transform, ship_speed_sprites) = player.unwrap();
+    player_transform.translation.y += 3.0;
+    if player_transform.translation.y > -200.0 {
+        player_transform.translation.y = -200.0;
+        has_entered.0 = true;
+    }
+    let thruster = thruster.single_mut();
+    if thruster.is_err() {
+        return;
+    }
+    let mut thruster_sprite = thruster.unwrap();
+    thruster_sprite.image = ship_speed_sprites.fast.clone();
 }
 
 fn despawn_game_screen(
@@ -124,6 +174,13 @@ struct Player {
 }
 
 #[derive(Component)]
+struct ShipSpeedSprites {
+    slow: Handle<Image>,
+    default: Handle<Image>,
+    fast: Handle<Image>,
+}
+
+#[derive(Component)]
 struct Projectile;
 
 #[derive(Component)]
@@ -138,7 +195,8 @@ struct AsteroidSpawnTimer(Timer);
 fn player_input(
     mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
-    mut player_query: Query<(&mut Transform, &mut Player)>,
+    mut player_query: Query<(&mut Transform, &mut Player, &ShipSpeedSprites)>,
+    mut thruster: Query<&mut Sprite, With<Thruster>>,
     time: Res<Time<Virtual>>,
     asset_server: Res<AssetServer>,
 ) {
@@ -147,33 +205,49 @@ fn player_input(
     if player.is_err() {
         return;
     }
-    let (mut player_transform, mut player) = player.unwrap();
+    let (mut player_transform, mut player, ship_speed_sprites) = player.unwrap();
 
     player.timer.tick(time.delta());
     if player.timer.is_finished() {
         player.can_shoot = true;
     }
 
-    let player_speed = 6.0;
+    let player_speed = 3.0;
+
+    let mut intent = Vec2::ZERO;
 
     if action_state.pressed(&Action::Up) {
-        player_transform.translation += Vec3::Y * player_speed;
+        intent += Vec2::Y;
     }
 
     if action_state.pressed(&Action::Down) {
-        player_transform.translation -= Vec3::Y * player_speed;
+        intent -= Vec2::Y;
     }
 
     if action_state.pressed(&Action::Left) {
-        player_transform.translation -= Vec3::X * player_speed;
+        intent -= Vec2::X;
     }
 
     if action_state.pressed(&Action::Right) {
-        player_transform.translation += Vec3::X * player_speed;
+        intent += Vec2::X;
     }
 
-    player_transform.translation.x = player_transform.translation.x.clamp(-400.0, 400.0);
-    player_transform.translation.y = player_transform.translation.y.clamp(-220.0, 220.0);
+    if intent != Vec2::ZERO {
+        player_transform.translation += intent.normalize().extend(0.0) * player_speed;
+        player_transform.translation.x = player_transform.translation.x.clamp(-400.0, 400.0);
+        player_transform.translation.y = player_transform.translation.y.clamp(-220.0, 220.0);
+    }
+
+    let thruster = thruster.single_mut();
+    if let Ok(mut thruster_sprite) = thruster {
+        if action_state.pressed(&Action::Up) {
+            thruster_sprite.image = ship_speed_sprites.fast.clone();
+        } else if action_state.pressed(&Action::Down) {
+            thruster_sprite.image = ship_speed_sprites.slow.clone();
+        } else {
+            thruster_sprite.image = ship_speed_sprites.default.clone();
+        }
+    }
 
     if action_state.pressed(&Action::Shoot) && player.can_shoot {
         commands.spawn((
@@ -389,15 +463,23 @@ fn game_over_input(
     input_query: Query<&ActionState<Action>>,
     mut state: ResMut<NextState<GameState>>,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
+    mut has_entered: ResMut<HasEntered>,
+    mut player: Query<&mut Transform, With<Player>>,
 ) {
     let action_state = input_query.single().unwrap();
     if action_state.just_pressed(&Action::Select) {
+        has_entered.0 = false;
+        let mut player_transform = player.single_mut().unwrap();
+        player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
         state.set(GameState::Play);
     }
 
     for interaction in interaction_query.iter() {
         match *interaction {
             Interaction::Pressed => {
+                has_entered.0 = false;
+                let mut player_transform = player.single_mut().unwrap();
+                player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
                 state.set(GameState::Play);
             }
             Interaction::Hovered => {}
