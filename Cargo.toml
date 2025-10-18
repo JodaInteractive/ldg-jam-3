@@ -49,7 +49,7 @@ dev = [
     "bevy/bevy_debug_stepping",
     "bevy/track_location",
     "bevy/trace",
-    "bevy/bevy_remote",
+    # "bevy/bevy_remote",
     "bevy/reflect_auto_register",
 ]
 dev_native = [

@@ -114,7 +114,6 @@ fn spawn_default_stars(commands: &mut Commands, asset_server: &Res<AssetServer>)
         commands.spawn((
             Name::new("Star"),
             Star {
-                active: true,
                 speed: random_range(0.5..=1.0),
             },
             Sprite {
@@ -168,7 +167,6 @@ struct Projectile;
 
 #[derive(Component)]
 pub struct Star {
-    pub active: bool,
     pub speed: f32,
 }
 

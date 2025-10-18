@@ -77,7 +77,6 @@ fn setup_splash(
     let mut star = commands.spawn((
         Name::new("Star"),
         Star {
-            active: false,
             speed: random_range(0.3..=0.6),
         },
         Sprite {
@@ -144,7 +143,6 @@ fn spawn_stars(
                 ..default()
             },
             Star {
-                active: true,
                 speed: random_range(0.3..=0.6),
             },
         ));
@@ -166,7 +164,6 @@ fn spawn_new_star(
     commands.spawn((
         Name::new("Star"),
         Star {
-            active: true,
             speed: random_range(0.3..=0.6),
         },
         Sprite {
