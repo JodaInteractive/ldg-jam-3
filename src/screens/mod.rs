@@ -1,17 +1,19 @@
 use bevy::prelude::*;
 
 mod game;
+mod splash;
 mod title;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<Screen>();
 
-    app.add_plugins((title::plugin, game::plugin));
+    app.add_plugins((splash::plugin, title::plugin, game::plugin));
 }
 
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum Screen {
-    Title,
     #[default]
+    Splash,
+    Title,
     Game,
 }

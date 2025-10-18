@@ -12,16 +12,22 @@ bevy = { version = "0.17.2", default-features = false, features = [
     "bevy_sprite",
     "bevy_sprite_render",
     "bevy_text",
+    "bevy_ui",
+    "bevy_ui_render",
+    "bevy_gilrs",
     "bevy_window",
     "bevy_winit",
     "bevy_state",
+    "bevy_audio",
+    "default_font",
     "multi_threaded",
     "png",
     "std",
+    "vorbis",
+    "wayland",
     "webgl2",
     "x11",
     "zstd_rust",
-    "wayland"
     ] }
 bevy_embedded_assets = "0.14.0"
 leafwing-input-manager = "0.18.0"
@@ -31,7 +37,7 @@ log = { version = "*", features = [
 rand = "0.9.2"
 
 [target.wasm32-unknown-unknown.dependencies]
-getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
 
 [features]
 # Default to a native dev build.
@@ -40,17 +46,17 @@ dev = [
     "bevy/dynamic_linking",
     "bevy/bevy_dev_tools",
     "bevy/bevy_ui_debug",
+    "bevy/bevy_debug_stepping",
     "bevy/track_location",
     "bevy/trace",
+    "bevy/bevy_remote",
+    "bevy/reflect_auto_register",
 ]
 dev_native = [
     "dev",
-    # Enable asset hot reloading for native dev builds.
     "bevy/file_watcher",
-    # Enable embedded asset hot reloading for native dev builds.
     "bevy/embedded_watcher",
 ]
-
 
 [package.metadata.bevy_cli.release]
 # Disable dev features for release builds.
