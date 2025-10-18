@@ -13,7 +13,10 @@ pub enum GameState {
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
-    app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
+    app.add_systems(
+        OnEnter(GameState::Play),
+        spawn_game_screen.run_if(in_state(Screen::Game)),
+    );
     app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
     app.add_systems(OnExit(GameState::GameOver), despawn_game_screen);
     app.configure_sets(Startup, GameSystems::Play);
@@ -27,12 +30,23 @@ pub(super) fn plugin(app: &mut App) {
             update_projectiles,
             projectile_asteroid_collision,
         )
-            .in_set(GameSystems::Play),
+            .in_set(GameSystems::Play)
+            .run_if(in_state(Screen::Game)),
     );
 
-    app.add_systems(Update, (pause).in_set(GameSystems::Play));
+    app.add_systems(
+        Update,
+        (pause)
+            .in_set(GameSystems::Play)
+            .run_if(in_state(Screen::Game)),
+    );
 
-    app.add_systems(Update, (game_over_input).in_set(GameSystems::GameOver));
+    app.add_systems(
+        Update,
+        (game_over_input)
+            .in_set(GameSystems::GameOver)
+            .run_if(in_state(Screen::Game)),
+    );
 
     app.add_systems(
         FixedUpdate,
@@ -42,7 +56,8 @@ pub(super) fn plugin(app: &mut App) {
             collide_with_asteroid_check,
             update_stars,
         )
-            .in_set(GameSystems::Environment),
+            .in_set(GameSystems::Environment)
+            .run_if(in_state(Screen::Game)),
     );
 
     app.insert_resource(AsteroidSpawnTimer(Timer::from_seconds(
@@ -99,7 +114,8 @@ fn spawn_default_stars(commands: &mut Commands, asset_server: &Res<AssetServer>)
         commands.spawn((
             Name::new("Star"),
             Star {
-                speed: random_range(0.5..=2.0),
+                active: true,
+                speed: random_range(0.5..=1.0),
             },
             Sprite {
                 image: asset_server.load(format!("sprites/stars/star{variant}.png")),
@@ -151,7 +167,8 @@ struct Player {
 struct Projectile;
 
 #[derive(Component)]
-struct Star {
+pub struct Star {
+    pub active: bool,
     pub speed: f32,
 }
 
@@ -310,7 +327,7 @@ fn update_stars(mut stars: Query<(&mut Transform, &mut Star)>) {
         if transform.translation.y < -240.0 {
             transform.translation.y = 240.0 + random_range(0.0..20.0);
             transform.translation.x = random_range(-400.0..400.0);
-            star.speed = random_range(0.5..=1.5);
+            star.speed = random_range(0.5..=1.0);
         }
     }
 }
@@ -351,7 +368,12 @@ fn collide_with_asteroid_check(
     mut time: ResMut<Time<Virtual>>,
     mut state: ResMut<NextState<GameState>>,
 ) {
-    let player_transform = player.single().unwrap();
+    let player = player.single();
+    if player.is_err() {
+        return;
+    }
+    let player_transform = player.unwrap();
+
     let hitbox_size = 8.0;
 
     for asteroid_transform in asteroids.iter() {

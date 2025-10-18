@@ -7,12 +7,20 @@ use bevy::{
     },
     window::{WindowMode, WindowResized, WindowResolution},
 };
+
+#[cfg(feature = "dev")]
+use bevy::remote::RemotePlugin;
+#[cfg(feature = "dev")]
+use bevy::remote::http::RemoteHttpPlugin;
+
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 
 use crate::input::InputPlugin;
 
+mod audio;
 mod input;
 mod screens;
+mod sundry;
 
 const RES_WIDTH: u32 = 853;
 const RES_HEIGHT: u32 = 480;
@@ -64,13 +72,18 @@ impl Plugin for AppPlugin {
 
         app.add_plugins(InputPlugin);
 
+        app.add_plugins(audio::plugin);
+
         app.add_plugins(screens::plugin);
+
+        #[cfg(feature = "dev")]
+        app.add_plugins((RemotePlugin::default(), RemoteHttpPlugin::default()));
 
         app.init_state::<Pause>();
         app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false))));
 
         app.insert_resource(ClearColor(Color::srgb_u8(9, 10, 20)));
-        app.add_systems(Startup, spawn_camera);
+        app.add_systems(PreStartup, spawn_camera);
         app.add_systems(Update, fit_canvas.run_if(on_message::<WindowResized>));
     }
 }
@@ -118,7 +131,6 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     ));
 
     commands.spawn((Sprite::from_image(image_handle), Canvas, HIGH_RES_LAYERS));
-
     commands.spawn((Camera2d, Msaa::Off, OuterCamera, HIGH_RES_LAYERS));
 }
 
