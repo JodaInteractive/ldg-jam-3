@@ -19,7 +19,6 @@ bevy = { version = "0.17.2", default-features = false, features = [
     "bevy_winit",
     "bevy_state",
     "bevy_audio",
-    "default_font",
     "multi_threaded",
     "png",
     "std",
