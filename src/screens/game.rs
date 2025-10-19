@@ -264,9 +264,9 @@ fn player_input(
 
     let thruster = thruster.single_mut();
     if let Ok(mut thruster_sprite) = thruster {
-        if action_state.pressed(&Action::Up) {
+        if intent.y > 0.0 {
             thruster_sprite.image = ship_speed_sprites.fast.clone();
-        } else if action_state.pressed(&Action::Down) {
+        } else if intent.y < 0.0 {
             thruster_sprite.image = ship_speed_sprites.slow.clone();
         } else {
             thruster_sprite.image = ship_speed_sprites.default.clone();
