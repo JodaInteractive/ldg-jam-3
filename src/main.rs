@@ -8,11 +8,6 @@ use bevy::{
     window::{WindowMode, WindowResized, WindowResolution},
 };
 
-// #[cfg(feature = "dev")]
-// use bevy::remote::RemotePlugin;
-// #[cfg(feature = "dev")]
-// use bevy::remote::http::RemoteHttpPlugin;
-
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 
 use crate::input::InputPlugin;
@@ -60,7 +55,9 @@ impl Plugin for AppPlugin {
                     primary_window: Some(Window {
                         title: "Star Journey".to_string(),
                         fit_canvas_to_parent: true,
-                        // mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        #[cfg(not(debug_assertions))]
+                        mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        #[cfg(debug_assertions)]
                         mode: WindowMode::Windowed,
                         resolution: WindowResolution::new(1920, 1080),
                         resizable: false,
@@ -79,9 +76,6 @@ impl Plugin for AppPlugin {
         app.add_plugins(screens::plugin);
 
         app.add_plugins(stars::plugin);
-
-        // #[cfg(feature = "dev")]
-        // app.add_plugins((RemotePlugin::default(), RemoteHttpPlugin::default()));
 
         app.init_state::<Pause>();
         app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false))));

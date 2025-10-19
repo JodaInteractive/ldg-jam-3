@@ -2,7 +2,21 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use rand::random_range;
 
-use crate::{PIXEL_PERFECT_LAYERS, input::Action, screens::Screen};
+use crate::{
+    PIXEL_PERFECT_LAYERS,
+    audio::{PlaySfxEvent, PlaySoundtrackEvent, SoundEffect, Soundtrack},
+    input::Action,
+    screens::Screen,
+};
+
+#[derive(Resource)]
+pub struct GameStats {
+    pub asteroids_destroyed: u32,
+    pub distance_traveled: u32,
+    pub shots_fired: u32,
+    pub shots_hit: u32,
+    pub time_played: f32,
+}
 
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum GameState {
@@ -21,6 +35,14 @@ pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
     app.insert_resource::<HasEntered>(HasEntered(false));
 
+    app.add_systems(
+        OnEnter(Screen::Game),
+        |mut has_entered: ResMut<HasEntered>| {
+            has_entered.0 = false;
+        },
+    );
+
+    app.add_systems(OnEnter(Screen::Game), trigger_music);
     app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
     app.add_systems(
         FixedUpdate,
@@ -41,6 +63,7 @@ pub(super) fn plugin(app: &mut App) {
             player_input,
             update_projectiles,
             projectile_asteroid_collision,
+            update_explosions,
         )
             .in_set(GameSystems::Play)
             .run_if(in_state(Screen::Game)),
@@ -187,6 +210,7 @@ struct Projectile;
 struct Asteroid {
     pub speed: f32,
     pub rotation_speed: f32,
+    pub health: u8,
 }
 
 #[derive(Resource)]
@@ -250,6 +274,9 @@ fn player_input(
     }
 
     if action_state.pressed(&Action::Shoot) && player.can_shoot {
+        commands.trigger(PlaySfxEvent {
+            sfx: SoundEffect::Shoot,
+        });
         commands.spawn((
             Name::new("Player Projectile"),
             PIXEL_PERFECT_LAYERS,
@@ -361,6 +388,7 @@ fn spawn_asteroid(
 ) {
     let image_index = random_range(3..=4);
     let image = format!("sprites/asteroids/asteroid{image_index}.png");
+    let health = if size.x > 32.0 { 5 } else { 2 };
     commands.spawn((
         Name::new("Asteroid"),
         Sprite {
@@ -376,6 +404,7 @@ fn spawn_asteroid(
             ..default()
         },
         Asteroid {
+            health,
             speed: random_range(1.0..2.0),
             rotation_speed: random_range(-0.02..0.02),
         },
@@ -402,28 +431,72 @@ fn collide_with_asteroid_check(
             .translation
             .distance(asteroid_transform.translation);
         if distance < (hitbox_size / 2.0) + (30.0 / 2.0) {
-            println!("Player hit by an asteroid!");
             time.pause();
             state.set(GameState::GameOver);
         }
     }
 }
 
+#[derive(Component)]
+struct Explosion;
+
 fn projectile_asteroid_collision(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     projectiles: Query<(Entity, &Transform), With<Projectile>>,
-    asteroids: Query<(Entity, &Transform), With<Asteroid>>,
+    mut asteroids: Query<(Entity, &Transform, &mut Asteroid)>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     for (projectile_entity, projectile_transform) in projectiles.iter() {
-        for (asteroid_entity, asteroid_transform) in asteroids.iter() {
+        for (asteroid_entity, asteroid_transform, mut asteroid) in asteroids.iter_mut() {
             let distance = projectile_transform
                 .translation
                 .distance(asteroid_transform.translation);
             if distance < (16.0 / 2.0) + (30.0 / 2.0) {
+                asteroid.health -= 1;
+                if asteroid.health == 0 {
+                    commands.entity(asteroid_entity).despawn();
+                }
                 commands.entity(projectile_entity).despawn();
-                commands.entity(asteroid_entity).despawn();
+                let texture_atlas_layout =
+                    TextureAtlasLayout::from_grid(UVec2::splat(32), 8, 1, None, None);
+                let texture_atlas_handle = texture_atlases.add(texture_atlas_layout);
+                commands.trigger(PlaySfxEvent {
+                    sfx: SoundEffect::Explosion,
+                });
+                commands.spawn((
+                    Name::new("Explosion"),
+                    Sprite::from_atlas_image(
+                        asset_server.load("sprites/explosion.png"),
+                        TextureAtlas::from(texture_atlas_handle),
+                    ),
+                    Transform {
+                        translation: projectile_transform.translation,
+                        ..default()
+                    },
+                    DespawnOnExit(Screen::Game),
+                    Explosion,
+                    PIXEL_PERFECT_LAYERS,
+                ));
             }
         }
+    }
+}
+
+fn update_explosions(
+    mut commands: Commands,
+    mut explosions: Query<(Entity, &mut Transform, &mut Sprite), With<Explosion>>,
+) {
+    for (entity, mut transform, mut sprite) in explosions.iter_mut() {
+        transform.translation -= Vec3::Y * 2.0;
+        let atlas = sprite.texture_atlas.as_mut().unwrap();
+        atlas.index += 1;
+        if atlas.index >= 8 {
+            commands.entity(entity).despawn();
+        }
+        sprite.texture_atlas = Some(atlas.clone());
+
+        // Update sprite animation here
     }
 }
 
@@ -461,13 +534,16 @@ fn spawn_game_over(mut commands: Commands) {
 
 fn game_over_input(
     input_query: Query<&ActionState<Action>>,
+    current_game_state: Res<State<GameState>>,
     mut state: ResMut<NextState<GameState>>,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
     mut has_entered: ResMut<HasEntered>,
     mut player: Query<&mut Transform, With<Player>>,
 ) {
     let action_state = input_query.single().unwrap();
-    if action_state.just_pressed(&Action::Select) {
+    if action_state.just_pressed(&Action::Select)
+        && current_game_state.get() == &GameState::GameOver
+    {
         has_entered.0 = false;
         let mut player_transform = player.single_mut().unwrap();
         player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
@@ -486,4 +562,10 @@ fn game_over_input(
             Interaction::None => {}
         }
     }
+}
+
+fn trigger_music(mut commands: Commands) {
+    commands.trigger(PlaySoundtrackEvent {
+        soundtrack: Soundtrack::BattleTheme,
+    });
 }
