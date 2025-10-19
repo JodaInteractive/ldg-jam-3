@@ -11,7 +11,7 @@ If you are playing it before the jam entry is submitted, the password is `ldgjam
 ## Design Notes
 
 ### Plot 
-you are a trainee pilot thrust into the action when you stumble across the roguelike boss during a routine (tutorial) patrol
+You are a space explorer searching for a new habitable planet for humanity.
 
 ### Areas
 classic shmup level 
@@ -35,12 +35,12 @@ cities for shopping and upgrading
 
 ### Required Art Assets
 
-- [ ] Title
-- [ ] Splash
+- [x] Title
+- [x] Splash
 - [x] Player Ship Sprite
-- [ ] Player Projectile Sprite
+- [x] Player Projectile Sprite
 - [x] Asteroid Sprite
 - [ ] Enemy Ship Sprite
 - [ ] Enemy Boss Ship Sprite
-- [ ] Backgrounds
-- [ ] Explosion Sprite/Animation
+- [x] Backgrounds
+- [x] Explosion Sprite/Animation
