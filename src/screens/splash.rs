@@ -3,6 +3,7 @@ use rand::random_range;
 
 use crate::{
     PIXEL_PERFECT_LAYERS,
+    audio::{PlaySoundtrackEvent, Soundtrack},
     screens::Screen,
     stars::{Star, StarPool},
 };
@@ -17,7 +18,7 @@ struct Developer;
 struct FadeOut;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_systems(OnEnter(Screen::Splash), setup_splash);
+    app.add_systems(OnEnter(Screen::Splash), (setup_splash, trigger_music));
     app.add_systems(
         FixedUpdate,
         (splash_update, update_title, update_developer, fade_out).run_if(in_state(Screen::Splash)),
@@ -160,4 +161,10 @@ fn fade_out(
             sprite.color = color;
         }
     }
+}
+
+fn trigger_music(mut commands: Commands) {
+    commands.trigger(PlaySoundtrackEvent {
+        soundtrack: Soundtrack::MainTheme,
+    });
 }

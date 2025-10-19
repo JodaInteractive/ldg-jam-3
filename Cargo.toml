@@ -24,6 +24,7 @@ bevy = { version = "0.17.2", default-features = false, features = [
     "png",
     "std",
     "vorbis",
+    "wav",
     "wayland",
     "webgl2",
     "x11",
