@@ -9,14 +9,14 @@ use crate::{
     screens::Screen,
 };
 
-#[derive(Resource)]
-pub struct GameStats {
-    pub asteroids_destroyed: u32,
-    pub distance_traveled: u32,
-    pub shots_fired: u32,
-    pub shots_hit: u32,
-    pub time_played: f32,
-}
+// #[derive(Resource)]
+// pub struct GameStats {
+//     pub asteroids_destroyed: u32,
+//     pub distance_traveled: u32,
+//     pub shots_fired: u32,
+//     pub shots_hit: u32,
+//     pub time_played: f32,
+// }
 
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum GameState {
