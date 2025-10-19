@@ -185,7 +185,7 @@ fn skip_button(mut state: ResMut<NextState<Screen>>, keyboard_input: Query<&Acti
     }
 
     let keyboard_input = keyboard_input.unwrap();
-    if keyboard_input.just_pressed(&Action::Select) {
+    if keyboard_input.just_pressed(&Action::Select) || keyboard_input.just_pressed(&Action::Pause) {
         state.set(Screen::Title);
     }
 }

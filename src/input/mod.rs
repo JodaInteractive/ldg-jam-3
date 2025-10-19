@@ -56,6 +56,8 @@ fn setup_input(mut commands: Commands) {
     player_input_map.insert(Action::Select, KeyCode::Enter);
     player_input_map.insert(Action::Select, GamepadButton::South);
     player_input_map.insert(Action::Pause, KeyCode::Escape);
+    player_input_map.insert(Action::Pause, GamepadButton::Start);
+    player_input_map.insert(Action::Pause, GamepadButton::Select);
 
     commands.spawn(player_input_map);
 }
