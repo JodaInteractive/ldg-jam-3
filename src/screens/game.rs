@@ -73,7 +73,7 @@ pub(super) fn plugin(app: &mut App) {
         Update,
         (pause)
             .in_set(GameSystems::Play)
-            .run_if(in_state(Screen::Game)),
+            .run_if(in_state(Screen::Game).and(in_state(GameState::Play))),
     );
 
     app.add_systems(
@@ -495,8 +495,6 @@ fn update_explosions(
             commands.entity(entity).despawn();
         }
         sprite.texture_atlas = Some(atlas.clone());
-
-        // Update sprite animation here
     }
 }
 
