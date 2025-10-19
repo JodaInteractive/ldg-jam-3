@@ -1,15 +1,17 @@
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::ActionState;
 use rand::random_range;
 
 use crate::{
     PIXEL_PERFECT_LAYERS,
     audio::{PlaySoundtrackEvent, Soundtrack},
+    input::Action,
     screens::Screen,
     stars::{Star, StarPool},
 };
 
 #[derive(Component)]
-struct Title;
+pub struct Title;
 
 #[derive(Component)]
 struct Developer;
@@ -21,7 +23,14 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Splash), (setup_splash, trigger_music));
     app.add_systems(
         FixedUpdate,
-        (splash_update, update_title, update_developer, fade_out).run_if(in_state(Screen::Splash)),
+        (
+            splash_update,
+            update_title,
+            update_developer,
+            fade_out,
+            skip_button,
+        )
+            .run_if(in_state(Screen::Splash)),
     );
 }
 
@@ -167,4 +176,16 @@ fn trigger_music(mut commands: Commands) {
     commands.trigger(PlaySoundtrackEvent {
         soundtrack: Soundtrack::MainTheme,
     });
+}
+
+fn skip_button(mut state: ResMut<NextState<Screen>>, keyboard_input: Query<&ActionState<Action>>) {
+    let keyboard_input = keyboard_input.single();
+    if keyboard_input.is_err() {
+        return;
+    }
+
+    let keyboard_input = keyboard_input.unwrap();
+    if keyboard_input.just_pressed(&Action::Select) {
+        state.set(Screen::Title);
+    }
 }
