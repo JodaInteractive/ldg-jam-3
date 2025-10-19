@@ -88,27 +88,22 @@ fn on_play_soundtrack_event(
         Soundtrack::BattleTheme => soundtracks.battle_theme.clone(),
     };
 
-    let Ok((entity, mut audio, mut playback)) = audio_player.single_mut() else {
-        commands.spawn((
-            SoundtrackPlayer,
-            AudioPlayer(track_handle.clone()),
-            PlaybackSettings {
-                mode: PlaybackMode::Loop,
-                volume: Volume::Linear(0.0),
-                ..default()
-            },
-            FadeIn { duration: 4.0 },
-            Transform::default(),
-            GlobalTransform::default(),
-        ));
-        return;
-    };
-
-    if audio.0 != track_handle {
-        audio.0 = track_handle.clone();
-        playback.volume = Volume::Linear(0.0);
-        commands.entity(entity).insert(FadeIn { duration: 4.0 });
+    for audio_player_entity in audio_player.iter_mut() {
+        commands.entity(audio_player_entity.0).despawn();
     }
+
+    commands.spawn((
+        SoundtrackPlayer,
+        AudioPlayer(track_handle.clone()),
+        PlaybackSettings {
+            mode: PlaybackMode::Loop,
+            volume: Volume::Linear(0.0),
+            ..default()
+        },
+        FadeIn { duration: 4.0 },
+        Transform::default(),
+        GlobalTransform::default(),
+    ));
 }
 
 fn on_play_sfx_event(sfx_event: On<PlaySfxEvent>, mut commands: Commands, sfx: Res<SfxLibrary>) {
