@@ -4,7 +4,7 @@ use leafwing_input_manager::prelude::ActionState;
 use crate::{
     HIGH_RES_LAYERS, PIXEL_PERFECT_LAYERS,
     input::Action,
-    screens::Screen,
+    screens::{Screen, splash::Title},
     sundry::{MEDIUM_GRAY, TRANSPARENT_MEDIUM_GRAY, WHITE},
 };
 
@@ -33,7 +33,13 @@ struct ActiveIndex(usize);
 #[derive(Component)]
 struct ButtonText(usize);
 
-fn spawn_title_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_title_screen(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut title_transform: Query<&mut Transform, With<Title>>,
+) {
+    let mut transform = title_transform.single_mut().unwrap();
+    transform.translation = Vec3::new(0.0, 32.0, 0.0);
     let font_handle = asset_server.load("font.ttf");
     commands.spawn((
         Node {
