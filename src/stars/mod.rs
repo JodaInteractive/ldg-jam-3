@@ -86,7 +86,6 @@ fn spawn_new_star(
             translation: Vec3::new(x, y, -10.0),
             ..default()
         },
-        DespawnOnExit(Screen::Game),
         PIXEL_PERFECT_LAYERS,
     ));
 }

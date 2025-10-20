@@ -3,6 +3,7 @@ use leafwing_input_manager::prelude::ActionState;
 
 use crate::{
     PIXEL_PERFECT_LAYERS, ScaleFactor,
+    audio::{PlaySoundtrackEvent, Soundtrack},
     input::Action,
     screens::{Screen, splash::Title},
     sundry::{MEDIUM_GRAY, TRANSPARENT_MEDIUM_GRAY, WHITE},
@@ -20,7 +21,7 @@ pub(super) fn plugin(app: &mut App) {
 #[derive(Component)]
 enum MenuButton {
     NewGame,
-    Settings,
+    // Settings,
     #[cfg(not(target_arch = "wasm32"))]
     Quit,
 }
@@ -40,9 +41,30 @@ fn spawn_title_screen(
     mut title_transform: Query<&mut Transform, With<Title>>,
     scale_factor: Res<ScaleFactor>,
 ) {
+    commands.trigger(PlaySoundtrackEvent {
+        soundtrack: Soundtrack::MainTheme,
+    });
     let scale = scale_factor.0;
-    let mut transform = title_transform.single_mut().unwrap();
-    transform.translation = Vec3::new(0.0, 32.0, 0.0);
+    let transform = title_transform.single_mut();
+    if let Ok(mut transform) = transform {
+        transform.translation = Vec3::new(0.0, 32.0, 0.0);
+    } else {
+        commands.spawn((
+            Title,
+            Sprite {
+                image: asset_server.load("sprites/title.png"),
+                color: Color::srgb_u8(235, 237, 233),
+                custom_size: Some(Vec2::new(256.0, 64.0)),
+                ..default()
+            },
+            DespawnOnExit(Screen::Title),
+            Transform {
+                translation: Vec3::new(0.0, 32.0, 0.0),
+                ..default()
+            },
+            PIXEL_PERFECT_LAYERS,
+        ));
+    }
     let font_handle: Handle<Font> = asset_server.load("font.ttf");
 
     let new_game = title_menu_button(
@@ -52,20 +74,20 @@ fn spawn_title_screen(
         font_handle.clone(),
         scale,
     );
-    let settings = title_menu_button(
-        "SETTINGS",
-        1,
-        MenuButton::Settings,
-        font_handle.clone(),
-        scale,
-    );
+    // let settings = title_menu_button(
+    //     "SETTINGS",
+    //     1,
+    //     MenuButton::Settings,
+    //     font_handle.clone(),
+    //     scale,
+    // );
 
     #[cfg(target_arch = "wasm32")]
-    let menu_buttons = children![new_game, settings];
+    let menu_buttons = children![new_game];
     #[cfg(not(target_arch = "wasm32"))]
-    let quit = title_menu_button("QUIT", 2, MenuButton::Quit, font_handle.clone(), scale);
+    let quit = title_menu_button("QUIT", 1, MenuButton::Quit, font_handle.clone(), scale);
     #[cfg(not(target_arch = "wasm32"))]
-    let menu_buttons = children![new_game, settings, quit];
+    let menu_buttons = children![new_game, quit];
 
     commands.spawn((
         Node {
@@ -103,9 +125,9 @@ fn input_system(
     let action_state = input_query.single().unwrap();
 
     #[cfg(not(target_arch = "wasm32"))]
-    let max_index = 2;
-    #[cfg(target_arch = "wasm32")]
     let max_index = 1;
+    #[cfg(target_arch = "wasm32")]
+    let max_index = 0;
 
     if action_state.just_pressed(&Action::Up) {
         if active_index.0 == 0 {
@@ -137,9 +159,6 @@ fn input_system(
                 screen_state.set(Screen::Game);
             }
             1 => {
-                println!("Settings button pressed");
-            }
-            2 => {
                 message_writer.write(AppExit::Success);
             }
             _ => {}
@@ -160,9 +179,9 @@ fn button_system(
                 MenuButton::NewGame => {
                     screen_state.set(Screen::Game);
                 }
-                MenuButton::Settings => {
-                    println!("Settings button pressed");
-                }
+                // MenuButton::Settings => {
+                //     println!("Settings button pressed");
+                // }
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuButton::Quit => {
                     message_writer.write(AppExit::Success);
@@ -176,12 +195,12 @@ fn button_system(
                     MenuButton::NewGame => {
                         active_index.0 = 0;
                     }
-                    MenuButton::Settings => {
-                        active_index.0 = 1;
-                    }
+                    // MenuButton::Settings => {
+                    //     active_index.0 = 1;
+                    // }
                     #[cfg(not(target_arch = "wasm32"))]
                     MenuButton::Quit => {
-                        active_index.0 = 2;
+                        active_index.0 = 1;
                     }
                 }
             }

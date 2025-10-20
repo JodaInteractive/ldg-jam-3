@@ -1,13 +1,12 @@
-use bevy::{prelude::*, text::FontSmoothing};
+use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 use rand::random_range;
 
 use crate::{
-    PIXEL_PERFECT_LAYERS, ScaleFactor,
+    PIXEL_PERFECT_LAYERS,
     audio::{PlaySfxEvent, PlaySoundtrackEvent, SoundEffect, Soundtrack},
     input::Action,
-    screens::Screen,
-    sundry::BLACK,
+    screens::{Screen, pause::PauseState},
 };
 
 #[derive(Resource)]
@@ -27,11 +26,15 @@ pub enum GameState {
     GameOver,
 }
 
-#[derive(Component)]
-struct Thruster;
+#[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
+pub enum GameSystems {
+    Play,
+    Environment,
+    GameOver,
+}
 
 #[derive(Resource, PartialEq)]
-struct HasEntered(bool);
+pub struct HasEntered(pub bool);
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
@@ -43,17 +46,16 @@ pub(super) fn plugin(app: &mut App) {
         // time_played: 0.0,
         // successful_trip: false,
     });
-    app.insert_resource::<HasEntered>(HasEntered(false));
-
-    app.add_systems(
-        OnEnter(Screen::Game),
-        |mut has_entered: ResMut<HasEntered>| {
-            has_entered.0 = false;
-        },
-    );
+    app.insert_resource(HasEntered(false));
+    app.add_observer(restart_game);
+    app.add_observer(back_to_menu);
 
     app.add_systems(OnEnter(Screen::Game), trigger_music);
-    app.add_systems(OnEnter(GameState::Play), spawn_game_screen);
+
+    app.add_systems(Startup, spawn_player);
+    app.configure_sets(Startup, GameSystems::Play);
+    app.configure_sets(Startup, GameSystems::Environment);
+
     app.add_systems(
         FixedUpdate,
         enter_player.run_if(
@@ -61,11 +63,6 @@ pub(super) fn plugin(app: &mut App) {
                 .and(in_state(GameState::Play).and(resource_equals(HasEntered(false)))),
         ),
     );
-    app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
-    app.add_systems(OnExit(GameState::GameOver), despawn_game_screen);
-    app.configure_sets(Startup, GameSystems::Play);
-    app.configure_sets(Startup, GameSystems::Environment);
-    app.configure_sets(Startup, GameSystems::GameOver);
 
     app.add_systems(
         FixedUpdate,
@@ -76,20 +73,6 @@ pub(super) fn plugin(app: &mut App) {
             update_explosions,
         )
             .in_set(GameSystems::Play)
-            .run_if(in_state(Screen::Game)),
-    );
-
-    app.add_systems(
-        Update,
-        (pause)
-            .in_set(GameSystems::Play)
-            .run_if(in_state(Screen::Game).and(in_state(GameState::Play))),
-    );
-
-    app.add_systems(
-        Update,
-        (game_over_input)
-            .in_set(GameSystems::GameOver)
             .run_if(in_state(Screen::Game)),
     );
 
@@ -110,11 +93,10 @@ pub(super) fn plugin(app: &mut App) {
     )));
 }
 
-fn spawn_game_screen(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut time: ResMut<Time<Virtual>>,
-) {
+#[derive(Component)]
+struct Thruster;
+
+fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let default_speed = asset_server.load("sprites/ships/ship3-default.png");
     commands.spawn((
         Name::new("Player Ship"),
@@ -122,7 +104,6 @@ fn spawn_game_screen(
             can_shoot: true,
             timer: Timer::from_seconds(0.15, TimerMode::Once),
         },
-        DespawnOnExit(Screen::Game),
         Sprite {
             image: asset_server.load("sprites/ships/ship3.png"),
             custom_size: Some(Vec2::splat(32.0)),
@@ -148,8 +129,6 @@ fn spawn_game_screen(
             }
         )],
     ));
-
-    time.unpause();
 }
 
 fn enter_player(
@@ -180,33 +159,8 @@ fn enter_player(
     thruster_sprite.image = ship_speed_sprites.fast.clone();
 }
 
-fn despawn_game_screen(
-    mut commands: Commands,
-    player: Query<Entity, With<Player>>,
-    asteraids: Query<Entity, With<Asteroid>>,
-    projectiles: Query<Entity, With<Projectile>>,
-) {
-    let player = player.single().unwrap();
-    commands.entity(player).despawn();
-
-    for asteroid in asteraids.iter() {
-        commands.entity(asteroid).despawn();
-    }
-
-    for projectile in projectiles.iter() {
-        commands.entity(projectile).despawn();
-    }
-}
-
-#[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
-enum GameSystems {
-    Play,
-    Environment,
-    GameOver,
-}
-
 #[derive(Component)]
-struct Player {
+pub struct Player {
     pub can_shoot: bool,
     pub timer: Timer,
 }
@@ -310,17 +264,6 @@ fn player_input(
             Projectile,
             DespawnOnExit(Screen::Game),
         ));
-    }
-}
-
-fn pause(mut time: ResMut<Time<Virtual>>, input_query: Query<&ActionState<Action>>) {
-    let action_state = input_query.single().unwrap();
-    if action_state.just_pressed(&Action::Pause) {
-        if time.is_paused() {
-            time.unpause();
-        } else {
-            time.pause();
-        }
     }
 }
 
@@ -430,19 +373,20 @@ fn spawn_asteroid(
 }
 
 fn collide_with_asteroid_check(
+    mut commands: Commands,
     player: Query<&Transform, With<Player>>,
     asteroids: Query<&Transform, With<Asteroid>>,
     mut time: ResMut<Time<Virtual>>,
     mut state: ResMut<NextState<GameState>>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let player = player.single();
     if player.is_err() {
         return;
     }
     let player_transform = player.unwrap();
-
     let hitbox_size = 8.0;
-
     for asteroid_transform in asteroids.iter() {
         let distance = player_transform
             .translation
@@ -450,6 +394,29 @@ fn collide_with_asteroid_check(
         if distance < (hitbox_size / 2.0) + (30.0 / 2.0) {
             time.pause();
             state.set(GameState::GameOver);
+            commands.trigger(PlaySfxEvent {
+                sfx: SoundEffect::Explosion,
+            });
+            let texture_atlas_layout =
+                TextureAtlasLayout::from_grid(UVec2::splat(32), 8, 1, None, None);
+            let texture_atlas_handle = texture_atlases.add(texture_atlas_layout);
+            commands.trigger(PlaySfxEvent {
+                sfx: SoundEffect::Explosion,
+            });
+            commands.spawn((
+                Name::new("Explosion"),
+                Sprite::from_atlas_image(
+                    asset_server.load("sprites/explosion.png"),
+                    TextureAtlas::from(texture_atlas_handle),
+                ),
+                Transform {
+                    translation: player_transform.translation,
+                    ..default()
+                },
+                DespawnOnExit(Screen::Game),
+                Explosion,
+                PIXEL_PERFECT_LAYERS,
+            ));
         }
     }
 }
@@ -518,220 +485,50 @@ fn update_explosions(
     }
 }
 
-fn spawn_game_over(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    scale_factor: Res<ScaleFactor>,
-    game_stats: Res<GameStats>,
-) {
-    let scale = scale_factor.0;
-    let font_handle: Handle<Font> = asset_server.load("font.ttf");
-
-    commands.spawn((
-        Name::new("Game Over Screen"),
-        Transform {
-            translation: Vec3::new(0.0, 0.0, 100.0),
-            ..default()
-        },
-        Node {
-            width: Val::Percent(70.0),
-            height: Val::Percent(70.0),
-            position_type: PositionType::Absolute,
-            justify_content: JustifyContent::Center,
-            margin: UiRect::all(Val::Auto),
-            ..default()
-        },
-        DespawnOnExit(Screen::Game),
-        DespawnOnExit(GameState::GameOver),
-        PIXEL_PERFECT_LAYERS,
-        children![
-            (
-                Name::new("Game Over Text"),
-                Text::new("GAME OVER"),
-                TextFont {
-                    font_size: 16.0 * scale,
-                    font: font_handle.clone(),
-                    font_smoothing: FontSmoothing::None,
-
-                    ..default()
-                },
-                Node {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px(8.0 * scale),
-                    margin: UiRect {
-                        left: Val::Auto,
-                        right: Val::Auto,
-                        ..default()
-                    },
-                    ..default()
-                }
-            ),
-            (
-                Name::new("Stats container"),
-                Node {
-                    display: Display::Flex,
-                    flex_direction: FlexDirection::Column,
-                    ..default()
-                },
-                children![
-                    stats_row(
-                        "DISTANCE TRAVELED",
-                        &game_stats.distance_traveled.to_string(),
-                        scale,
-                        font_handle.clone(),
-                    ),
-                    stats_row(
-                        "SHOTS FIRED",
-                        &game_stats.shots_fired.to_string(),
-                        scale,
-                        font_handle.clone(),
-                    ),
-                    stats_row(
-                        "SHOTS HIT",
-                        &game_stats.shots_hit.to_string(),
-                        scale,
-                        font_handle.clone()
-                    ),
-                    stats_row(
-                        "ASTEROIDS DESTROYED",
-                        &game_stats.asteroids_destroyed.to_string(),
-                        scale,
-                        font_handle.clone(),
-                    ),
-                ]
-            ),
-            (
-                Name::new("Replay Button"),
-                Button,
-                Node {
-                    position_type: PositionType::Absolute,
-                    bottom: Val::Px(32.0 * scale),
-                    ..default()
-                },
-                children![(
-                    Name::new("Replay Button Text"),
-                    Text::new("REPLAY"),
-                    Node::default(),
-                    TextFont {
-                        font_size: 16.0 * scale,
-                        font: font_handle.clone(),
-                        font_smoothing: FontSmoothing::None,
-                        ..default()
-                    }
-                )],
-            ),
-            (
-                Name::new("Back to Menu Button"),
-                Button,
-                Node {
-                    position_type: PositionType::Absolute,
-                    bottom: Val::Px(8.0 * scale),
-                    ..default()
-                },
-                children![(
-                    Name::new("Back to Menu Text"),
-                    Text::new("BACK TO MENU"),
-                    Node::default(),
-                    TextFont {
-                        font_size: 16.0 * scale,
-                        font: font_handle.clone(),
-                        font_smoothing: FontSmoothing::None,
-
-                        ..default()
-                    }
-                )]
-            )
-        ],
-    ));
-}
-
-fn game_over_input(
-    input_query: Query<&ActionState<Action>>,
-    current_game_state: Res<State<GameState>>,
-    mut state: ResMut<NextState<GameState>>,
-    interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
-    mut has_entered: ResMut<HasEntered>,
-    mut player: Query<&mut Transform, With<Player>>,
-) {
-    let action_state = input_query.single().unwrap();
-    if action_state.just_pressed(&Action::Select)
-        && current_game_state.get() == &GameState::GameOver
-    {
-        has_entered.0 = false;
-        let mut player_transform = player.single_mut().unwrap();
-        player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
-        state.set(GameState::Play);
-    }
-
-    for interaction in interaction_query.iter() {
-        match *interaction {
-            Interaction::Pressed => {
-                has_entered.0 = false;
-                let mut player_transform = player.single_mut().unwrap();
-                player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
-                state.set(GameState::Play);
-            }
-            Interaction::Hovered => {}
-            Interaction::None => {}
-        }
-    }
-}
-
 fn trigger_music(mut commands: Commands) {
     commands.trigger(PlaySoundtrackEvent {
         soundtrack: Soundtrack::BattleTheme,
     });
 }
 
-fn stats_row(stat: &str, value: &str, scale: f32, font_handle: Handle<Font>) -> impl Bundle {
-    (
-        Name::new(format!("{stat} Stat")),
-        BackgroundColor(BLACK),
-        Node {
-            display: Display::Flex,
-            justify_content: JustifyContent::SpaceBetween,
-            top: Val::Px(32.0 * scale),
-            width: Val::Percent(100.0),
-            padding: UiRect {
-                top: Val::Px(8.0 * scale),
-                ..default()
-            },
-            margin: UiRect {
-                left: Val::Px(32.0 * scale),
-                right: Val::Px(32.0 * scale),
-                ..default()
-            },
-            ..default()
-        },
-        children![
-            (
-                Name::new(format!("{stat} Label")),
-                Text::new(stat),
-                TextFont {
-                    font_size: 16.0 * scale,
-                    font: font_handle.clone(),
-                    font_smoothing: FontSmoothing::None,
-                    ..default()
-                },
-                Node {
-                    left: Val::Px(0.0),
-                    ..default()
-                },
-            ),
-            (
-                Name::new(format!("{stat} Value")),
-                Text::new(value),
-                TextFont {
-                    font_size: 16.0 * scale,
-                    font: font_handle.clone(),
-                    font_smoothing: FontSmoothing::None,
-                    ..default()
-                },
-                Node {
-                    right: Val::Px(0.0),
-                    ..default()
-                }
-            )
-        ],
-    )
+#[derive(Event)]
+pub struct RestartGame;
+
+fn restart_game(
+    _event: On<RestartGame>,
+    mut commands: Commands,
+    mut time: ResMut<Time<Virtual>>,
+    mut pause_state: ResMut<NextState<PauseState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut has_entered: ResMut<HasEntered>,
+    mut player: Query<&mut Transform, With<Player>>,
+    asteroids: Query<Entity, With<Asteroid>>,
+    projectiles: Query<Entity, With<Projectile>>,
+) {
+    for asteroid in asteroids.iter() {
+        commands.entity(asteroid).despawn();
+    }
+
+    for projectile in projectiles.iter() {
+        commands.entity(projectile).despawn();
+    }
+
+    pause_state.set(PauseState::NotPaused);
+    let mut player_transform = player.single_mut().unwrap();
+    player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
+    has_entered.0 = false;
+    game_state.set(GameState::Play);
+    time.unpause();
+}
+
+#[derive(Event)]
+pub struct BackToMenuEvent;
+
+fn back_to_menu(
+    _event: On<BackToMenuEvent>,
+    mut commands: Commands,
+    mut screen_state: ResMut<NextState<Screen>>,
+) {
+    commands.trigger(RestartGame);
+    screen_state.set(Screen::Title);
 }
