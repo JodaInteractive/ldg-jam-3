@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, text::FontSmoothing};
 use leafwing_input_manager::prelude::ActionState;
 
 use crate::{
@@ -58,10 +58,11 @@ fn spawn_title_screen(
         font_handle.clone(),
         scale,
     );
-    let quit = title_menu_button("QUIT", 2, MenuButton::Quit, font_handle.clone(), scale);
 
     #[cfg(target_arch = "wasm32")]
     let menu_buttons = children![new_game, settings];
+    #[cfg(not(target_arch = "wasm32"))]
+    let quit = title_menu_button("QUIT", 2, MenuButton::Quit, font_handle.clone(), scale);
     #[cfg(not(target_arch = "wasm32"))]
     let menu_buttons = children![new_game, settings, quit];
 
@@ -232,6 +233,7 @@ fn title_menu_button(
             TextFont {
                 font_size: 16.0 * scale,
                 font: font_handle,
+                font_smoothing: FontSmoothing::None,
                 ..default()
             },
             FadeIn,

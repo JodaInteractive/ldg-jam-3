@@ -10,7 +10,7 @@ use bevy::{
 
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 
-use crate::input::InputPlugin;
+use crate::{input::InputPlugin, sundry::BLACK};
 
 mod audio;
 mod input;
@@ -123,10 +123,11 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         Camera {
             order: -1,
             target: RenderTarget::Image(image_handle.clone().into()),
-            clear_color: ClearColorConfig::Custom(Color::srgb_u8(9, 10, 20)),
+            clear_color: ClearColorConfig::Custom(BLACK),
             ..default()
         },
         Msaa::Off,
+        UiAntiAlias::Off,
         InGameCamera,
         PIXEL_PERFECT_LAYERS,
     ));
