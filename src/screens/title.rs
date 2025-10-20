@@ -22,6 +22,7 @@ pub(super) fn plugin(app: &mut App) {
 enum MenuButton {
     NewGame,
     // Settings,
+    Credits,
     #[cfg(not(target_arch = "wasm32"))]
     Quit,
 }
@@ -81,13 +82,20 @@ fn spawn_title_screen(
     //     font_handle.clone(),
     //     scale,
     // );
+    let credits = title_menu_button(
+        "CREDITS",
+        1,
+        MenuButton::Credits,
+        font_handle.clone(),
+        scale,
+    );
 
     #[cfg(target_arch = "wasm32")]
-    let menu_buttons = children![new_game];
+    let menu_buttons = children![new_game, credits];
     #[cfg(not(target_arch = "wasm32"))]
-    let quit = title_menu_button("QUIT", 1, MenuButton::Quit, font_handle.clone(), scale);
+    let quit = title_menu_button("QUIT", 2, MenuButton::Quit, font_handle.clone(), scale);
     #[cfg(not(target_arch = "wasm32"))]
-    let menu_buttons = children![new_game, quit];
+    let menu_buttons = children![new_game, credits, quit];
 
     commands.spawn((
         Node {
@@ -125,9 +133,9 @@ fn input_system(
     let action_state = input_query.single().unwrap();
 
     #[cfg(not(target_arch = "wasm32"))]
-    let max_index = 1;
+    let max_index = 2;
     #[cfg(target_arch = "wasm32")]
-    let max_index = 0;
+    let max_index = 1;
 
     if action_state.just_pressed(&Action::Up) {
         if active_index.0 == 0 {
@@ -159,6 +167,9 @@ fn input_system(
                 screen_state.set(Screen::Game);
             }
             1 => {
+                screen_state.set(Screen::Credits);
+            }
+            2 => {
                 message_writer.write(AppExit::Success);
             }
             _ => {}
@@ -176,12 +187,11 @@ fn button_system(
     for (interaction, menu_button, children) in interaction_query {
         match *interaction {
             Interaction::Pressed => match menu_button {
-                MenuButton::NewGame => {
-                    screen_state.set(Screen::Game);
-                }
+                MenuButton::NewGame => screen_state.set(Screen::Game),
                 // MenuButton::Settings => {
                 //     println!("Settings button pressed");
                 // }
+                MenuButton::Credits => screen_state.set(Screen::Credits),
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuButton::Quit => {
                     message_writer.write(AppExit::Success);
@@ -192,16 +202,13 @@ fn button_system(
                     .entity(*children.first().unwrap())
                     .insert(TextColor(WHITE));
                 match menu_button {
-                    MenuButton::NewGame => {
-                        active_index.0 = 0;
-                    }
+                    MenuButton::NewGame => active_index.0 = 0,
+                    MenuButton::Credits => active_index.0 = 1,
                     // MenuButton::Settings => {
                     //     active_index.0 = 1;
                     // }
                     #[cfg(not(target_arch = "wasm32"))]
-                    MenuButton::Quit => {
-                        active_index.0 = 1;
-                    }
+                    MenuButton::Quit => active_index.0 = 2,
                 }
             }
             Interaction::None => {
