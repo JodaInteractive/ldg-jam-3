@@ -84,7 +84,6 @@ fn setup_splash(
             translation: Vec3::new(-1000.0, -1000.0, -10.0),
             ..default()
         },
-        DespawnOnExit(Screen::Game),
         PIXEL_PERFECT_LAYERS,
     ));
     star_pool.inactive_stars.push(star.id());

@@ -89,6 +89,9 @@ fn on_play_soundtrack_event(
     };
 
     for audio_player_entity in audio_player.iter_mut() {
+        if audio_player_entity.1.0 == track_handle {
+            return;
+        }
         commands.entity(audio_player_entity.0).despawn();
     }
 
