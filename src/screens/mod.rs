@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+mod credits;
 mod game;
 mod gameover;
 mod pause;
@@ -13,6 +14,7 @@ pub(super) fn plugin(app: &mut App) {
         splash::plugin,
         title::plugin,
         game::plugin,
+        credits::plugin,
         pause::plugin,
         gameover::plugin,
     ));
@@ -24,4 +26,5 @@ pub enum Screen {
     Splash,
     Title,
     Game,
+    Credits,
 }
