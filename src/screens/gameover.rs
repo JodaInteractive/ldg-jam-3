@@ -84,8 +84,8 @@ fn spawn_game_over(
                 },
                 children![
                     stats_row(
-                        "DISTANCE TRAVELED",
-                        &game_stats.distance_traveled.to_string(),
+                        "TIME PLAYED",
+                        format!("{:.0}", &game_stats.time_played).as_str(),
                         scale,
                         font_handle.clone(),
                     ),
