@@ -59,6 +59,7 @@ impl Plugin for AppPlugin {
                         mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
                         #[cfg(debug_assertions)]
                         mode: WindowMode::Windowed,
+                        // resolution: WindowResolution::new(853, 480),
                         resolution: WindowResolution::new(1920, 1080),
                         resizable: false,
                         position: WindowPosition::Centered(MonitorSelection::Current),
@@ -68,6 +69,8 @@ impl Plugin for AppPlugin {
                 })
                 .set(ImagePlugin::default_nearest()),
         );
+
+        app.insert_resource(ScaleFactor(1.0));
 
         app.add_plugins(InputPlugin);
 
@@ -132,9 +135,13 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((Camera2d, Msaa::Off, OuterCamera, HIGH_RES_LAYERS));
 }
 
+#[derive(Resource)]
+pub struct ScaleFactor(f32);
+
 fn fit_canvas(
     mut resize_messages: MessageReader<WindowResized>,
     mut projection: Single<&mut Projection, With<OuterCamera>>,
+    mut scale_factor: ResMut<ScaleFactor>,
 ) {
     let Projection::Orthographic(proj) = &mut **projection else {
         return;
@@ -143,6 +150,8 @@ fn fit_canvas(
     for msg in resize_messages.read() {
         let h_scale = msg.width / RES_WIDTH as f32;
         let v_scale = msg.height / RES_HEIGHT as f32;
-        proj.scale = 1. / h_scale.min(v_scale);
+        let scale = h_scale.min(v_scale);
+        proj.scale = 1. / scale;
+        scale_factor.0 = scale;
     }
 }
