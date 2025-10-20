@@ -21,6 +21,7 @@ pub(super) fn plugin(app: &mut App) {
 enum MenuButton {
     NewGame,
     Settings,
+    #[cfg(not(target_arch = "wasm32"))]
     Quit,
 }
 
@@ -150,8 +151,8 @@ fn button_system(
     mut commands: Commands,
     interaction_query: Query<(&Interaction, &MenuButton, &Children), Changed<Interaction>>,
     mut screen_state: ResMut<NextState<Screen>>,
-    mut message_writer: MessageWriter<AppExit>,
     mut active_index: ResMut<ActiveIndex>,
+    #[cfg(not(target_arch = "wasm32"))] mut message_writer: MessageWriter<AppExit>,
 ) {
     for (interaction, menu_button, children) in interaction_query {
         match *interaction {
@@ -162,6 +163,7 @@ fn button_system(
                 MenuButton::Settings => {
                     println!("Settings button pressed");
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 MenuButton::Quit => {
                     message_writer.write(AppExit::Success);
                 }
@@ -177,6 +179,7 @@ fn button_system(
                     MenuButton::Settings => {
                         active_index.0 = 1;
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
                     MenuButton::Quit => {
                         active_index.0 = 2;
                     }
