@@ -15,7 +15,7 @@ pub struct GameStats {
     pub distance_traveled: u32,
     pub shots_fired: u32,
     pub shots_hit: u32,
-    // pub time_played: f32,
+    pub time_played: f32,
     // pub successful_trip: bool,
 }
 
@@ -43,7 +43,7 @@ pub(super) fn plugin(app: &mut App) {
         distance_traveled: 0,
         shots_fired: 0,
         shots_hit: 0,
-        // time_played: 0.0,
+        time_played: 0.0,
         // successful_trip: false,
     });
     app.insert_resource(HasEntered(false));
@@ -55,6 +55,11 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(Startup, spawn_player);
     app.configure_sets(Startup, GameSystems::Play);
     app.configure_sets(Startup, GameSystems::Environment);
+
+    app.add_systems(
+        Update,
+        stopwatch.run_if(in_state(GameState::Play).and(in_state(PauseState::NotPaused))),
+    );
 
     app.add_systems(
         FixedUpdate,
@@ -141,6 +146,7 @@ fn enter_player(
     game_stats.distance_traveled = 0;
     game_stats.shots_fired = 0;
     game_stats.shots_hit = 0;
+    game_stats.time_played = 0.0;
     let player = player.single_mut();
     if player.is_err() {
         return;
@@ -184,6 +190,10 @@ struct Asteroid {
 
 #[derive(Resource)]
 struct AsteroidSpawnTimer(Timer);
+
+fn stopwatch(time: Res<Time<Virtual>>, mut game_stats: ResMut<GameStats>) {
+    game_stats.time_played += time.delta_secs();
+}
 
 fn player_input(
     mut commands: Commands,
