@@ -5,7 +5,7 @@ use crate::{
     PIXEL_PERFECT_LAYERS, ScaleFactor,
     audio::{PlaySoundtrackEvent, Soundtrack},
     input::Action,
-    screens::{Screen, splash::Title},
+    screens::{Screen, game::RestartGame, splash::Title},
     sundry::{MEDIUM_GRAY, TRANSPARENT_MEDIUM_GRAY, WHITE},
 };
 
@@ -43,7 +43,7 @@ fn spawn_title_screen(
     scale_factor: Res<ScaleFactor>,
 ) {
     commands.trigger(PlaySoundtrackEvent {
-        soundtrack: Soundtrack::MainTheme,
+        soundtrack: Soundtrack::Main,
     });
     let scale = scale_factor.0;
     let transform = title_transform.single_mut();
@@ -124,6 +124,7 @@ fn spawn_title_screen(
 }
 
 fn input_system(
+    mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
     mut screen_state: ResMut<NextState<Screen>>,
     mut message_writer: MessageWriter<AppExit>,
@@ -165,6 +166,7 @@ fn input_system(
         match active_index.0 {
             0 => {
                 screen_state.set(Screen::Game);
+                commands.trigger(RestartGame);
             }
             1 => {
                 screen_state.set(Screen::Credits);
@@ -187,7 +189,10 @@ fn button_system(
     for (interaction, menu_button, children) in interaction_query {
         match *interaction {
             Interaction::Pressed => match menu_button {
-                MenuButton::NewGame => screen_state.set(Screen::Game),
+                MenuButton::NewGame => {
+                    screen_state.set(Screen::Game);
+                    commands.trigger(RestartGame);
+                }
                 // MenuButton::Settings => {
                 //     println!("Settings button pressed");
                 // }

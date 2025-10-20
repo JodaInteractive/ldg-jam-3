@@ -12,19 +12,19 @@ use crate::{
 };
 
 pub(super) fn plugin(app: &mut App) {
-    app.insert_resource(GameOverActiveIndex(0));
-    app.configure_sets(Startup, GameSystems::GameOver);
+    app.insert_resource(EndGameActiveIndex(0));
+    app.configure_sets(Startup, GameSystems::EndGame);
 
-    app.add_systems(OnEnter(GameState::GameOver), spawn_game_over);
+    app.add_systems(OnEnter(GameState::EndGame), spawn_game_over);
     app.add_systems(
         Update,
         (game_over_buttons, game_over_input_system)
-            .in_set(GameSystems::GameOver)
-            .run_if(in_state(Screen::Game).and(in_state(GameState::GameOver))),
+            .in_set(GameSystems::EndGame)
+            .run_if(in_state(Screen::Game).and(in_state(GameState::EndGame))),
     );
     app.add_systems(
         Update,
-        style_button_text.run_if(in_state(Screen::Game).and(in_state(GameState::GameOver))),
+        style_button_text.run_if(in_state(Screen::Game).and(in_state(GameState::EndGame))),
     );
 }
 
@@ -51,12 +51,12 @@ fn spawn_game_over(
             margin: UiRect::all(Val::Auto),
             ..default()
         },
-        DespawnOnExit(GameState::GameOver),
+        DespawnOnExit(GameState::EndGame),
         PIXEL_PERFECT_LAYERS,
         children![
             (
                 Name::new("Game Over Text"),
-                Text::new("GAME OVER"),
+                Text::new("YOU SAVED HUMANITY"),
                 TextFont {
                     font_size: 16.0 * scale,
                     font: font_handle.clone(),
@@ -124,21 +124,21 @@ fn spawn_game_over(
                     game_over_button(
                         "REPLAY",
                         0,
-                        GameOverButton::Replay,
+                        EndGameButton::Replay,
                         font_handle.clone(),
                         scale
                     ),
                     game_over_button(
                         "CREDITS",
                         1,
-                        GameOverButton::Credits,
+                        EndGameButton::Credits,
                         font_handle.clone(),
                         scale
                     ),
                     game_over_button(
                         "BACK TO MENU",
                         2,
-                        GameOverButton::BackToMenu,
+                        EndGameButton::BackToMenu,
                         font_handle.clone(),
                         scale
                     )
@@ -151,7 +151,7 @@ fn spawn_game_over(
 fn game_over_button(
     button: &str,
     index: usize,
-    game_over_button: GameOverButton,
+    game_over_button: EndGameButton,
     font_handle: Handle<Font>,
     scale: f32,
 ) -> impl Bundle {
@@ -163,7 +163,7 @@ fn game_over_button(
             Name::new(format!("{button} Button Text")),
             Text::new(button),
             Node::default(),
-            GameOverButtonIndex(index),
+            EndGameButtonIndex(index),
             TextFont {
                 font_size: 16.0 * scale,
                 font: font_handle.clone(),
@@ -176,23 +176,23 @@ fn game_over_button(
 
 #[derive(Component)]
 #[require(Button)]
-enum GameOverButton {
+enum EndGameButton {
     Replay,
     Credits,
     BackToMenu,
 }
 
 #[derive(Component)]
-struct GameOverButtonIndex(usize);
+struct EndGameButtonIndex(usize);
 
 #[derive(Resource)]
-struct GameOverActiveIndex(usize);
+struct EndGameActiveIndex(usize);
 
 fn game_over_input_system(
     mut commands: Commands,
     input_query: Query<&ActionState<Action>>,
     mut screen_state: ResMut<NextState<Screen>>,
-    mut active_index: ResMut<GameOverActiveIndex>,
+    mut active_index: ResMut<EndGameActiveIndex>,
 ) {
     let action_state = input_query.single().unwrap();
 
@@ -228,27 +228,27 @@ fn game_over_input_system(
 
 fn game_over_buttons(
     mut commands: Commands,
-    interaction_query: Query<(&Interaction, &GameOverButton), Changed<Interaction>>,
+    interaction_query: Query<(&Interaction, &EndGameButton), Changed<Interaction>>,
     mut screen_state: ResMut<NextState<Screen>>,
-    mut active_index: ResMut<GameOverActiveIndex>,
+    mut active_index: ResMut<EndGameActiveIndex>,
 ) {
     for (interaction, game_button) in interaction_query {
         match *interaction {
             Interaction::Pressed => match game_button {
-                GameOverButton::Replay => commands.trigger(RestartGame),
-                GameOverButton::Credits => {
+                EndGameButton::Replay => commands.trigger(RestartGame),
+                EndGameButton::Credits => {
                     commands.trigger(RestartGame);
                     screen_state.set(Screen::Credits);
                 }
-                GameOverButton::BackToMenu => {
+                EndGameButton::BackToMenu => {
                     commands.trigger(RestartGame);
                     screen_state.set(Screen::Title);
                 }
             },
             Interaction::Hovered => match game_button {
-                GameOverButton::Replay => active_index.0 = 0,
-                GameOverButton::Credits => active_index.0 = 1,
-                GameOverButton::BackToMenu => active_index.0 = 2,
+                EndGameButton::Replay => active_index.0 = 0,
+                EndGameButton::Credits => active_index.0 = 1,
+                EndGameButton::BackToMenu => active_index.0 = 2,
             },
             _ => {}
         }
@@ -256,8 +256,8 @@ fn game_over_buttons(
 }
 
 fn style_button_text(
-    mut text: Query<(&GameOverButtonIndex, &mut TextColor)>,
-    active: ResMut<GameOverActiveIndex>,
+    mut text: Query<(&EndGameButtonIndex, &mut TextColor)>,
+    active: ResMut<EndGameActiveIndex>,
 ) {
     for (button_index, mut color) in text.iter_mut() {
         if button_index.0 == active.0 {
