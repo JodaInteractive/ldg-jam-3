@@ -45,7 +45,7 @@ fn spawn_stars(
     if let Some(entity) = star_entity {
         commands.entity(entity).insert((
             Transform {
-                translation: Vec3::new(x, y, -10.0),
+                translation: Vec3::new(x, y, -15.0),
                 ..default()
             },
             Sprite {
@@ -83,7 +83,7 @@ fn spawn_new_star(
             ..default()
         },
         Transform {
-            translation: Vec3::new(x, y, -10.0),
+            translation: Vec3::new(x, y, -15.0),
             ..default()
         },
         PIXEL_PERFECT_LAYERS,

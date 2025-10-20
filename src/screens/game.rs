@@ -24,6 +24,7 @@ pub enum GameState {
     #[default]
     Play,
     GameOver,
+    EndGame,
 }
 
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
@@ -31,6 +32,7 @@ pub enum GameSystems {
     Play,
     Environment,
     GameOver,
+    EndGame,
 }
 
 #[derive(Resource, PartialEq)]
@@ -47,18 +49,28 @@ pub(super) fn plugin(app: &mut App) {
         // successful_trip: false,
     });
     app.insert_resource(HasEntered(false));
+    app.insert_resource(EndGame(false));
     app.add_observer(restart_game);
     app.add_observer(back_to_menu);
 
     app.add_systems(OnEnter(Screen::Game), trigger_music);
 
-    app.add_systems(Startup, spawn_player);
+    app.add_systems(Startup, (spawn_player, spawn_planet));
     app.configure_sets(Startup, GameSystems::Play);
     app.configure_sets(Startup, GameSystems::Environment);
 
     app.add_systems(
         Update,
         stopwatch.run_if(in_state(GameState::Play).and(in_state(PauseState::NotPaused))),
+    );
+
+    app.add_systems(
+        FixedUpdate,
+        run_endgame.run_if(
+            in_state(GameState::Play)
+                .and(in_state(PauseState::NotPaused))
+                .and(resource_equals(EndGame(true))),
+        ),
     );
 
     app.add_systems(
@@ -141,12 +153,15 @@ fn enter_player(
     mut thruster: Query<&mut Sprite, With<Thruster>>,
     mut has_entered: ResMut<HasEntered>,
     mut game_stats: ResMut<GameStats>,
+    mut end_game: ResMut<EndGame>,
 ) {
     game_stats.asteroids_destroyed = 0;
     game_stats.distance_traveled = 0;
     game_stats.shots_fired = 0;
     game_stats.shots_hit = 0;
     game_stats.time_played = 0.0;
+    println!("resetting end game");
+    end_game.0 = false;
     let player = player.single_mut();
     if player.is_err() {
         return;
@@ -156,6 +171,7 @@ fn enter_player(
     if player_transform.translation.y > -200.0 {
         player_transform.translation.y = -200.0;
         has_entered.0 = true;
+        game_stats.time_played = 0.0;
     }
     let thruster = thruster.single_mut();
     if thruster.is_err() {
@@ -191,8 +207,58 @@ struct Asteroid {
 #[derive(Resource)]
 struct AsteroidSpawnTimer(Timer);
 
-fn stopwatch(time: Res<Time<Virtual>>, mut game_stats: ResMut<GameStats>) {
+#[derive(Resource, PartialEq)]
+struct EndGame(bool);
+
+fn stopwatch(
+    mut commands: Commands,
+    time: Res<Time<Virtual>>,
+    mut game_stats: ResMut<GameStats>,
+    mut end_game: ResMut<EndGame>,
+) {
+    println!("time played: {:?}", game_stats.time_played);
+    if game_stats.time_played > 300.0 {
+        game_stats.time_played = 300.0;
+        end_game.0 = true;
+        commands.trigger(PlaySoundtrackEvent {
+            soundtrack: Soundtrack::End,
+        });
+    }
     game_stats.time_played += time.delta_secs();
+}
+
+#[derive(Component)]
+struct Planet;
+
+fn spawn_planet(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn((
+        Planet,
+        Sprite {
+            image: asset_server.load("sprites/planet-smol.png"),
+            ..default()
+        },
+        Transform {
+            translation: Vec3 {
+                x: 0.0,
+                y: 400.0,
+                z: -11.0,
+            },
+            ..default()
+        },
+    ));
+}
+
+fn run_endgame(
+    mut planet: Single<&mut Transform, With<Planet>>,
+    mut time: ResMut<Time<Virtual>>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    planet.translation.y -= 0.5;
+    if planet.translation.y < -100.0 {
+        planet.translation.y = -100.0;
+        time.pause();
+        game_state.set(GameState::EndGame);
+    }
 }
 
 fn player_input(
@@ -288,7 +354,11 @@ fn spawn_asteroids(
     asset_server: Res<AssetServer>,
     mut timer: ResMut<AsteroidSpawnTimer>,
     time: Res<Time<Virtual>>,
+    end_game: Res<EndGame>,
 ) {
+    if end_game.0 {
+        return;
+    }
     timer.0.tick(time.delta());
     if !timer.0.is_finished() {
         return;
@@ -497,7 +567,7 @@ fn update_explosions(
 
 fn trigger_music(mut commands: Commands) {
     commands.trigger(PlaySoundtrackEvent {
-        soundtrack: Soundtrack::BattleTheme,
+        soundtrack: Soundtrack::Battle,
     });
 }
 
@@ -514,6 +584,8 @@ fn restart_game(
     mut player: Query<&mut Transform, With<Player>>,
     asteroids: Query<Entity, With<Asteroid>>,
     projectiles: Query<Entity, With<Projectile>>,
+    mut end_game: ResMut<EndGame>,
+    mut planet: Query<&mut Transform, (With<Planet>, Without<Player>)>,
 ) {
     for asteroid in asteroids.iter() {
         commands.entity(asteroid).despawn();
@@ -523,9 +595,14 @@ fn restart_game(
         commands.entity(projectile).despawn();
     }
 
+    end_game.0 = false;
     pause_state.set(PauseState::NotPaused);
     let mut player_transform = player.single_mut().unwrap();
     player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
+
+    let mut planet_transform = planet.single_mut().unwrap();
+    planet_transform.translation = Vec3::new(0.0, 400.0, -11.0);
+
     has_entered.0 = false;
     game_state.set(GameState::Play);
     time.unpause();

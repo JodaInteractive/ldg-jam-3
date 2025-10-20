@@ -8,7 +8,7 @@ pub(super) fn plugin(app: &mut App) {
     app.init_resource::<SfxLibrary>();
     app.add_observer(on_play_soundtrack_event);
     app.add_observer(on_play_sfx_event);
-    app.add_systems(Update, fade_in);
+    app.add_systems(Update, (fade_in, fade_out));
 }
 
 #[derive(Resource)]
@@ -48,6 +48,7 @@ struct SoundtrackPlayer;
 pub struct Soundtracks {
     pub main_theme: Handle<AudioSource>,
     pub battle_theme: Handle<AudioSource>,
+    pub end_theme: Handle<AudioSource>,
 }
 
 impl FromWorld for Soundtracks {
@@ -56,17 +57,20 @@ impl FromWorld for Soundtracks {
         let soundtracks = Soundtracks {
             main_theme: asset_server.load("soundtrack/spacetheme.ogg"),
             battle_theme: asset_server.load("soundtrack/through-space.ogg"),
+            end_theme: asset_server.load("soundtrack/space.flac"),
         };
         Self {
             main_theme: soundtracks.main_theme,
             battle_theme: soundtracks.battle_theme,
+            end_theme: soundtracks.end_theme,
         }
     }
 }
 
 pub enum Soundtrack {
-    MainTheme,
-    BattleTheme,
+    Main,
+    Battle,
+    End,
 }
 
 #[derive(Event)]
@@ -84,29 +88,36 @@ fn on_play_soundtrack_event(
     >,
 ) {
     let track_handle = match soundtrack_event.soundtrack {
-        Soundtrack::MainTheme => soundtracks.main_theme.clone(),
-        Soundtrack::BattleTheme => soundtracks.battle_theme.clone(),
+        Soundtrack::Main => soundtracks.main_theme.clone(),
+        Soundtrack::Battle => soundtracks.battle_theme.clone(),
+        Soundtrack::End => soundtracks.end_theme.clone(),
     };
 
+    let mut is_already_playing = false;
     for audio_player_entity in audio_player.iter_mut() {
         if audio_player_entity.1.0 == track_handle {
-            return;
+            is_already_playing = true;
+        } else {
+            commands
+                .entity(audio_player_entity.0)
+                .insert(FadeOut { duration: 0.5 });
         }
-        commands.entity(audio_player_entity.0).despawn();
     }
 
-    commands.spawn((
-        SoundtrackPlayer,
-        AudioPlayer(track_handle.clone()),
-        PlaybackSettings {
-            mode: PlaybackMode::Loop,
-            volume: Volume::Linear(0.0),
-            ..default()
-        },
-        FadeIn { duration: 4.0 },
-        Transform::default(),
-        GlobalTransform::default(),
-    ));
+    if !is_already_playing {
+        commands.spawn((
+            SoundtrackPlayer,
+            AudioPlayer(track_handle.clone()),
+            PlaybackSettings {
+                mode: PlaybackMode::Loop,
+                volume: Volume::Linear(0.0),
+                ..default()
+            },
+            FadeIn { duration: 4.0 },
+            Transform::default(),
+            GlobalTransform::default(),
+        ));
+    }
 }
 
 fn on_play_sfx_event(sfx_event: On<PlaySfxEvent>, mut commands: Commands, sfx: Res<SfxLibrary>) {
@@ -145,6 +156,28 @@ fn fade_in(
         if audio.volume().to_linear() >= 1.0 {
             audio.set_volume(Volume::Linear(1.0));
             commands.entity(entity).remove::<FadeIn>();
+        }
+    }
+}
+
+#[derive(Component)]
+struct FadeOut {
+    duration: f32,
+}
+
+fn fade_out(
+    mut commands: Commands,
+    mut audio_sink: Query<(&FadeOut, &mut AudioSink, Entity)>,
+    time: Res<Time>,
+) {
+    for (fade_out, mut audio, entity) in audio_sink.iter_mut() {
+        let current_volume = audio.volume();
+        audio.set_volume(
+            current_volume.fade_towards(Volume::Linear(0.0), time.delta_secs() / fade_out.duration),
+        );
+        println!("fading out: {:?}", audio.volume().to_linear());
+        if audio.volume().to_linear() <= 0.15 {
+            commands.entity(entity).despawn();
         }
     }
 }

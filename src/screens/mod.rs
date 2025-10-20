@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 mod credits;
+mod endgame;
 mod game;
 mod gameover;
 mod pause;
@@ -17,6 +18,7 @@ pub(super) fn plugin(app: &mut App) {
         credits::plugin,
         pause::plugin,
         gameover::plugin,
+        endgame::plugin,
     ));
 }
 

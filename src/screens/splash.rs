@@ -81,7 +81,7 @@ fn setup_splash(
             ..default()
         },
         Transform {
-            translation: Vec3::new(-1000.0, -1000.0, -10.0),
+            translation: Vec3::new(-1000.0, -1000.0, -15.0),
             ..default()
         },
         PIXEL_PERFECT_LAYERS,
@@ -173,7 +173,7 @@ fn fade_out(
 
 fn trigger_music(mut commands: Commands) {
     commands.trigger(PlaySoundtrackEvent {
-        soundtrack: Soundtrack::MainTheme,
+        soundtrack: Soundtrack::Main,
     });
 }
 
