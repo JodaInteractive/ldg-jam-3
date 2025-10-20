@@ -1,22 +1,24 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, text::FontSmoothing};
 use leafwing_input_manager::prelude::*;
 use rand::random_range;
 
 use crate::{
-    PIXEL_PERFECT_LAYERS,
+    PIXEL_PERFECT_LAYERS, ScaleFactor,
     audio::{PlaySfxEvent, PlaySoundtrackEvent, SoundEffect, Soundtrack},
     input::Action,
     screens::Screen,
+    sundry::BLACK,
 };
 
-// #[derive(Resource)]
-// pub struct GameStats {
-//     pub asteroids_destroyed: u32,
-//     pub distance_traveled: u32,
-//     pub shots_fired: u32,
-//     pub shots_hit: u32,
-//     pub time_played: f32,
-// }
+#[derive(Resource)]
+pub struct GameStats {
+    pub asteroids_destroyed: u32,
+    pub distance_traveled: u32,
+    pub shots_fired: u32,
+    pub shots_hit: u32,
+    // pub time_played: f32,
+    // pub successful_trip: bool,
+}
 
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub enum GameState {
@@ -33,6 +35,14 @@ struct HasEntered(bool);
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<GameState>();
+    app.insert_resource(GameStats {
+        asteroids_destroyed: 0,
+        distance_traveled: 0,
+        shots_fired: 0,
+        shots_hit: 0,
+        // time_played: 0.0,
+        // successful_trip: false,
+    });
     app.insert_resource::<HasEntered>(HasEntered(false));
 
     app.add_systems(
@@ -146,7 +156,12 @@ fn enter_player(
     mut player: Query<(&mut Transform, &ShipSpeedSprites), With<Player>>,
     mut thruster: Query<&mut Sprite, With<Thruster>>,
     mut has_entered: ResMut<HasEntered>,
+    mut game_stats: ResMut<GameStats>,
 ) {
+    game_stats.asteroids_destroyed = 0;
+    game_stats.distance_traveled = 0;
+    game_stats.shots_fired = 0;
+    game_stats.shots_hit = 0;
     let player = player.single_mut();
     if player.is_err() {
         return;
@@ -223,6 +238,7 @@ fn player_input(
     mut thruster: Query<&mut Sprite, With<Thruster>>,
     time: Res<Time<Virtual>>,
     asset_server: Res<AssetServer>,
+    mut game_stats: ResMut<GameStats>,
 ) {
     let action_state = input_query.single().unwrap();
     let player = player_query.single_mut();
@@ -274,6 +290,9 @@ fn player_input(
     }
 
     if action_state.pressed(&Action::Shoot) && player.can_shoot {
+        player.can_shoot = false;
+        player.timer.reset();
+        game_stats.shots_fired += 1;
         commands.trigger(PlaySfxEvent {
             sfx: SoundEffect::Shoot,
         });
@@ -291,8 +310,6 @@ fn player_input(
             Projectile,
             DespawnOnExit(Screen::Game),
         ));
-        player.can_shoot = false;
-        player.timer.reset();
     }
 }
 
@@ -446,6 +463,7 @@ fn projectile_asteroid_collision(
     projectiles: Query<(Entity, &Transform), With<Projectile>>,
     mut asteroids: Query<(Entity, &Transform, &mut Asteroid)>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    mut game_stats: ResMut<GameStats>,
 ) {
     for (projectile_entity, projectile_transform) in projectiles.iter() {
         for (asteroid_entity, asteroid_transform, mut asteroid) in asteroids.iter_mut() {
@@ -453,8 +471,10 @@ fn projectile_asteroid_collision(
                 .translation
                 .distance(asteroid_transform.translation);
             if distance < (16.0 / 2.0) + (30.0 / 2.0) {
+                game_stats.shots_hit += 1;
                 asteroid.health -= 1;
                 if asteroid.health == 0 {
+                    game_stats.asteroids_destroyed += 1;
                     commands.entity(asteroid_entity).despawn();
                 }
                 commands.entity(projectile_entity).despawn();
@@ -498,33 +518,128 @@ fn update_explosions(
     }
 }
 
-fn spawn_game_over(mut commands: Commands) {
+fn spawn_game_over(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    scale_factor: Res<ScaleFactor>,
+    game_stats: Res<GameStats>,
+) {
+    let scale = scale_factor.0;
+    let font_handle: Handle<Font> = asset_server.load("font.ttf");
+
     commands.spawn((
         Name::new("Game Over Screen"),
         Transform {
             translation: Vec3::new(0.0, 0.0, 100.0),
             ..default()
         },
-        Node::default(),
+        Node {
+            width: Val::Percent(70.0),
+            height: Val::Percent(70.0),
+            position_type: PositionType::Absolute,
+            justify_content: JustifyContent::Center,
+            margin: UiRect::all(Val::Auto),
+            ..default()
+        },
         DespawnOnExit(Screen::Game),
         DespawnOnExit(GameState::GameOver),
         PIXEL_PERFECT_LAYERS,
         children![
             (
                 Name::new("Game Over Text"),
-                Text::new("Game Over"),
-                Node::default()
+                Text::new("GAME OVER"),
+                TextFont {
+                    font_size: 16.0 * scale,
+                    font: font_handle.clone(),
+                    font_smoothing: FontSmoothing::None,
+
+                    ..default()
+                },
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(8.0 * scale),
+                    margin: UiRect {
+                        left: Val::Auto,
+                        right: Val::Auto,
+                        ..default()
+                    },
+                    ..default()
+                }
+            ),
+            (
+                Name::new("Stats container"),
+                Node {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                children![
+                    stats_row(
+                        "DISTANCE TRAVELED",
+                        &game_stats.distance_traveled.to_string(),
+                        scale,
+                        font_handle.clone(),
+                    ),
+                    stats_row(
+                        "SHOTS FIRED",
+                        &game_stats.shots_fired.to_string(),
+                        scale,
+                        font_handle.clone(),
+                    ),
+                    stats_row(
+                        "SHOTS HIT",
+                        &game_stats.shots_hit.to_string(),
+                        scale,
+                        font_handle.clone()
+                    ),
+                    stats_row(
+                        "ASTEROIDS DESTROYED",
+                        &game_stats.asteroids_destroyed.to_string(),
+                        scale,
+                        font_handle.clone(),
+                    ),
+                ]
             ),
             (
                 Name::new("Replay Button"),
                 Button,
                 Node {
-                    margin: UiRect::all(Val::Px(10.0)),
-                    padding: UiRect::all(Val::Px(10.0)),
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(32.0 * scale),
                     ..default()
                 },
-                BackgroundColor(Color::BLACK),
-                children![(Name::new("Replay Button Text"), Text::new("Replay"))],
+                children![(
+                    Name::new("Replay Button Text"),
+                    Text::new("REPLAY"),
+                    Node::default(),
+                    TextFont {
+                        font_size: 16.0 * scale,
+                        font: font_handle.clone(),
+                        font_smoothing: FontSmoothing::None,
+                        ..default()
+                    }
+                )],
+            ),
+            (
+                Name::new("Back to Menu Button"),
+                Button,
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(8.0 * scale),
+                    ..default()
+                },
+                children![(
+                    Name::new("Back to Menu Text"),
+                    Text::new("BACK TO MENU"),
+                    Node::default(),
+                    TextFont {
+                        font_size: 16.0 * scale,
+                        font: font_handle.clone(),
+                        font_smoothing: FontSmoothing::None,
+
+                        ..default()
+                    }
+                )]
             )
         ],
     ));
@@ -566,4 +681,57 @@ fn trigger_music(mut commands: Commands) {
     commands.trigger(PlaySoundtrackEvent {
         soundtrack: Soundtrack::BattleTheme,
     });
+}
+
+fn stats_row(stat: &str, value: &str, scale: f32, font_handle: Handle<Font>) -> impl Bundle {
+    (
+        Name::new(format!("{stat} Stat")),
+        BackgroundColor(BLACK),
+        Node {
+            display: Display::Flex,
+            justify_content: JustifyContent::SpaceBetween,
+            top: Val::Px(32.0 * scale),
+            width: Val::Percent(100.0),
+            padding: UiRect {
+                top: Val::Px(8.0 * scale),
+                ..default()
+            },
+            margin: UiRect {
+                left: Val::Px(32.0 * scale),
+                right: Val::Px(32.0 * scale),
+                ..default()
+            },
+            ..default()
+        },
+        children![
+            (
+                Name::new(format!("{stat} Label")),
+                Text::new(stat),
+                TextFont {
+                    font_size: 16.0 * scale,
+                    font: font_handle.clone(),
+                    font_smoothing: FontSmoothing::None,
+                    ..default()
+                },
+                Node {
+                    left: Val::Px(0.0),
+                    ..default()
+                },
+            ),
+            (
+                Name::new(format!("{stat} Value")),
+                Text::new(value),
+                TextFont {
+                    font_size: 16.0 * scale,
+                    font: font_handle.clone(),
+                    font_smoothing: FontSmoothing::None,
+                    ..default()
+                },
+                Node {
+                    right: Val::Px(0.0),
+                    ..default()
+                }
+            )
+        ],
+    )
 }
