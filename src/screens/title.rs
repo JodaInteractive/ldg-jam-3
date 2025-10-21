@@ -20,6 +20,7 @@ pub(super) fn plugin(app: &mut App) {
 
 #[derive(Component)]
 enum MenuButton {
+    HowToPlay,
     NewGame,
     // Settings,
     Credits,
@@ -68,9 +69,16 @@ fn spawn_title_screen(
     }
     let font_handle: Handle<Font> = asset_server.load("font.ttf");
 
+    let how_to_play = title_menu_button(
+        "HOW TO PLAY",
+        0,
+        MenuButton::HowToPlay,
+        font_handle.clone(),
+        scale,
+    );
     let new_game = title_menu_button(
         "NEW GAME",
-        0,
+        1,
         MenuButton::NewGame,
         font_handle.clone(),
         scale,
@@ -84,18 +92,18 @@ fn spawn_title_screen(
     // );
     let credits = title_menu_button(
         "CREDITS",
-        1,
+        2,
         MenuButton::Credits,
         font_handle.clone(),
         scale,
     );
 
     #[cfg(target_arch = "wasm32")]
-    let menu_buttons = children![new_game, credits];
+    let menu_buttons = children![how_to_play, new_game, credits];
     #[cfg(not(target_arch = "wasm32"))]
-    let quit = title_menu_button("QUIT", 2, MenuButton::Quit, font_handle.clone(), scale);
+    let quit = title_menu_button("QUIT", 3, MenuButton::Quit, font_handle.clone(), scale);
     #[cfg(not(target_arch = "wasm32"))]
-    let menu_buttons = children![new_game, credits, quit];
+    let menu_buttons = children![how_to_play, new_game, credits, quit];
 
     commands.spawn((
         Node {
@@ -134,9 +142,9 @@ fn input_system(
     let action_state = input_query.single().unwrap();
 
     #[cfg(not(target_arch = "wasm32"))]
-    let max_index = 2;
+    let max_index = 3;
     #[cfg(target_arch = "wasm32")]
-    let max_index = 1;
+    let max_index = 2;
 
     if action_state.just_pressed(&Action::Up) {
         if active_index.0 == 0 {
@@ -165,13 +173,16 @@ fn input_system(
     if action_state.just_pressed(&Action::Select) {
         match active_index.0 {
             0 => {
+                screen_state.set(Screen::HowToPlay);
+            }
+            1 => {
                 screen_state.set(Screen::Game);
                 commands.trigger(RestartGame);
             }
-            1 => {
+            2 => {
                 screen_state.set(Screen::Credits);
             }
-            2 => {
+            3 => {
                 message_writer.write(AppExit::Success);
             }
             _ => {}
@@ -189,6 +200,9 @@ fn button_system(
     for (interaction, menu_button, children) in interaction_query {
         match *interaction {
             Interaction::Pressed => match menu_button {
+                MenuButton::HowToPlay => {
+                    screen_state.set(Screen::HowToPlay);
+                }
                 MenuButton::NewGame => {
                     screen_state.set(Screen::Game);
                     commands.trigger(RestartGame);
@@ -207,13 +221,14 @@ fn button_system(
                     .entity(*children.first().unwrap())
                     .insert(TextColor(WHITE));
                 match menu_button {
-                    MenuButton::NewGame => active_index.0 = 0,
-                    MenuButton::Credits => active_index.0 = 1,
+                    MenuButton::HowToPlay => active_index.0 = 0,
+                    MenuButton::NewGame => active_index.0 = 1,
+                    MenuButton::Credits => active_index.0 = 2,
                     // MenuButton::Settings => {
                     //     active_index.0 = 1;
                     // }
                     #[cfg(not(target_arch = "wasm32"))]
-                    MenuButton::Quit => active_index.0 = 2,
+                    MenuButton::Quit => active_index.0 = 3,
                 }
             }
             Interaction::None => {

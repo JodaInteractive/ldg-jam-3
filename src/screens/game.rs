@@ -126,7 +126,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             timer: Timer::from_seconds(0.15, TimerMode::Once),
             shield: 2,
             shield_regen: Timer::from_seconds(5.0, TimerMode::Once),
-            shield_hit_cooldown: Timer::from_seconds(1.0, TimerMode::Once),
+            shield_hit_cooldown: Timer::from_seconds(0.5, TimerMode::Once),
         },
         Sprite {
             image: asset_server.load("sprites/ships/ship3.png"),
@@ -236,7 +236,6 @@ fn stopwatch(
     mut game_stats: ResMut<GameStats>,
     mut end_game: ResMut<EndGame>,
 ) {
-    println!("time played: {:?}", game_stats.time_played);
     if game_stats.time_played > 300.0 {
         game_stats.time_played = 300.0;
         end_game.0 = true;
@@ -635,7 +634,7 @@ fn restart_game(
     mut pause_state: ResMut<NextState<PauseState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut has_entered: ResMut<HasEntered>,
-    mut player: Query<&mut Transform, With<Player>>,
+    mut player: Query<(&mut Transform, &mut Player)>,
     asteroids: Query<Entity, With<Asteroid>>,
     projectiles: Query<Entity, With<Projectile>>,
     mut end_game: ResMut<EndGame>,
@@ -651,8 +650,11 @@ fn restart_game(
 
     end_game.0 = false;
     pause_state.set(PauseState::NotPaused);
-    let mut player_transform = player.single_mut().unwrap();
+    let (mut player_transform, mut player) = player.single_mut().unwrap();
     player_transform.translation = Vec3::new(0.0, -280.0, 0.0);
+    player.shield = 2;
+    player.shield_hit_cooldown.reset();
+    player.shield_regen.reset();
 
     let mut planet_transform = planet.single_mut().unwrap();
     planet_transform.translation = Vec3::new(0.0, 400.0, -11.0);

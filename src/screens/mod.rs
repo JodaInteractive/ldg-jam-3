@@ -4,6 +4,7 @@ mod credits;
 mod endgame;
 mod game;
 mod gameover;
+mod howtoplay;
 mod pause;
 mod splash;
 mod title;
@@ -19,6 +20,7 @@ pub(super) fn plugin(app: &mut App) {
         pause::plugin,
         gameover::plugin,
         endgame::plugin,
+        howtoplay::plugin,
     ));
 }
 
@@ -26,6 +28,7 @@ pub(super) fn plugin(app: &mut App) {
 pub enum Screen {
     #[default]
     Splash,
+    HowToPlay,
     Title,
     Game,
     Credits,
