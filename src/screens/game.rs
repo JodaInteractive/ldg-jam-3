@@ -88,6 +88,7 @@ pub(super) fn plugin(app: &mut App) {
             update_projectiles,
             projectile_asteroid_collision,
             update_explosions,
+            shield_regen,
         )
             .in_set(GameSystems::Play)
             .run_if(in_state(Screen::Game)),
@@ -113,6 +114,9 @@ pub(super) fn plugin(app: &mut App) {
 #[derive(Component)]
 struct Thruster;
 
+#[derive(Component)]
+struct Shield;
+
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let default_speed = asset_server.load("sprites/ships/ship3-default.png");
     commands.spawn((
@@ -120,6 +124,9 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         Player {
             can_shoot: true,
             timer: Timer::from_seconds(0.15, TimerMode::Once),
+            shield: 2,
+            shield_regen: Timer::from_seconds(5.0, TimerMode::Once),
+            shield_hit_cooldown: Timer::from_seconds(1.0, TimerMode::Once),
         },
         Sprite {
             image: asset_server.load("sprites/ships/ship3.png"),
@@ -136,15 +143,25 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         PIXEL_PERFECT_LAYERS,
-        children![(
-            Name::new("Player Ship Thruster"),
-            Thruster,
-            Sprite {
-                image: default_speed.clone(),
-                custom_size: Some(Vec2::splat(32.0)),
-                ..default()
-            }
-        )],
+        children![
+            (
+                Name::new("Player Ship Thruster"),
+                Thruster,
+                Sprite {
+                    image: default_speed.clone(),
+                    custom_size: Some(Vec2::splat(32.0)),
+                    ..default()
+                }
+            ),
+            (
+                Name::new("Player Shield"),
+                Shield,
+                Sprite {
+                    image: asset_server.load("sprites/shield.png"),
+                    ..default()
+                }
+            )
+        ],
     ));
 }
 
@@ -185,6 +202,9 @@ fn enter_player(
 pub struct Player {
     pub can_shoot: bool,
     pub timer: Timer,
+    pub shield: u8,
+    pub shield_regen: Timer,
+    pub shield_hit_cooldown: Timer,
 }
 
 #[derive(Component)]
@@ -454,26 +474,37 @@ fn spawn_asteroid(
 
 fn collide_with_asteroid_check(
     mut commands: Commands,
-    player: Query<&Transform, With<Player>>,
+    mut player: Single<(&Transform, &mut Player)>,
     asteroids: Query<&Transform, With<Asteroid>>,
     mut time: ResMut<Time<Virtual>>,
     mut state: ResMut<NextState<GameState>>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    mut shield: Single<&mut Sprite, With<Shield>>,
 ) {
-    let player = player.single();
-    if player.is_err() {
-        return;
-    }
-    let player_transform = player.unwrap();
+    let player_transform = player.0;
+    let player = &mut player.1;
     let hitbox_size = 8.0;
     for asteroid_transform in asteroids.iter() {
         let distance = player_transform
             .translation
             .distance(asteroid_transform.translation);
-        if distance < (hitbox_size / 2.0) + (30.0 / 2.0) {
-            time.pause();
-            state.set(GameState::GameOver);
+        if distance < (hitbox_size / 2.0) + (30.0 / 2.0) && player.shield_hit_cooldown.is_finished()
+        {
+            if player.shield == 0 {
+                time.pause();
+                state.set(GameState::GameOver);
+            } else {
+                player.shield -= 1;
+                player.shield_regen.reset();
+                player.shield_hit_cooldown.reset();
+                if player.shield == 0 {
+                    shield.image = asset_server.load("sprites/shield-empty.png");
+                } else if player.shield == 1 {
+                    shield.image = asset_server.load("sprites/shield-low.png");
+                }
+            }
+
             commands.trigger(PlaySfxEvent {
                 sfx: SoundEffect::Explosion,
             });
@@ -497,6 +528,29 @@ fn collide_with_asteroid_check(
                 Explosion,
                 PIXEL_PERFECT_LAYERS,
             ));
+        }
+    }
+}
+
+fn shield_regen(
+    time: Res<Time<Virtual>>,
+    mut player: Single<&mut Player>,
+    mut shield: Single<&mut Sprite, With<Shield>>,
+    asset_server: Res<AssetServer>,
+) {
+    player.shield_regen.tick(time.delta());
+    player.shield_hit_cooldown.tick(time.delta());
+    if player.shield_regen.just_finished() {
+        player.shield_regen.reset();
+        player.shield += 1;
+        if player.shield > 2 {
+            player.shield = 2;
+        }
+        match player.shield {
+            0 => shield.image = asset_server.load("sprites/shield-empty.png"),
+            1 => shield.image = asset_server.load("sprites/shield-low.png"),
+            2 => shield.image = asset_server.load("sprites/shield.png"),
+            _ => {}
         }
     }
 }
