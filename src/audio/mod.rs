@@ -175,7 +175,6 @@ fn fade_out(
         audio.set_volume(
             current_volume.fade_towards(Volume::Linear(0.0), time.delta_secs() / fade_out.duration),
         );
-        println!("fading out: {:?}", audio.volume().to_linear());
         if audio.volume().to_linear() <= 0.15 {
             commands.entity(entity).despawn();
         }
